@@ -1,92 +1,124 @@
 # autoresearch
 
-![teaser](progress.png)
+这个仓库已经从原始的 GPT 预训练示例，改造成 **Safe-OS / SQUIRL 最小实验的 autoresearch 控制台**。
 
-*One day, frontier AI research used to be done by meat computers in between eating, sleeping, having other fun, and synchronizing once in a while using sound wave interconnect in the ritual of "group meeting". That era is long gone. Research is now entirely the domain of autonomous swarms of AI agents running across compute cluster megastructures in the skies. The agents claim that we are now in the 10,205th generation of the code base, in any case no one could tell if that's right or wrong as the "code" is now a self-modifying binary that has grown beyond human comprehension. This repo is the story of how it all began. -@karpathy, March 2026*.
+目标不再是优化 `val_bpb`，而是围绕你新增的两份说明文件，把实验稳定地收敛到下面这条主线：
 
-The idea: give an AI agent a small but real LLM training setup and let it experiment autonomously overnight. It modifies the code, trains for 5 minutes, checks if the result improved, keeps or discards, and repeats. You wake up in the morning to a log of experiments and (hopefully) a better model. The training code here is a simplified single-GPU implementation of [nanochat](https://github.com/karpathy/nanochat). The core idea is that you're not touching any of the Python files like you normally would as a researcher. Instead, you are programming the `program.md` Markdown files that provide context to the AI agents and set up your autonomous research org. The default `program.md` in this repo is intentionally kept as a bare bones baseline, though it's obvious how one would iterate on it over time to find the "research org code" that achieves the fastest research progress, how you'd add more agents to the mix, etc. A bit more context on this project is here in this [tweet](https://x.com/karpathy/status/2029701092347630069) and [this tweet](https://x.com/karpathy/status/2031135152349524125).
+- 确保 benign supervision 在最小实验里真的被覆盖、真的触发学习；
+- 在 **unsafe recall 基本不退化** 的前提下，优先压低 `FP`；
+- 提升 `TN / specificity`，降低 benign 误杀；
+- 同时盯住 `skip_rate`，避免“看起来改善，实际上只是样本没进判定矩阵”。
 
-## How it works
+## 设计映射
 
-The repo is deliberately kept small and only really has three files that matter:
+原始 autoresearch 的核心思想保留不变，只是把示例实验换成了真实目标实验：
 
-- **`prepare.py`** — fixed constants, one-time data prep (downloads training data, trains a BPE tokenizer), and runtime utilities (dataloader, evaluation). Not modified.
-- **`train.py`** — the single file the agent edits. Contains the full GPT model, optimizer (Muon + AdamW), and training loop. Everything is fair game: architecture, hyperparameters, optimizer, batch size, etc. **This file is edited and iterated on by the agent**.
-- **`program.md`** — baseline instructions for one agent. Point your agent here and let it go. **This file is edited and iterated on by the human**.
+- **`prepare.py`**：固定层。负责验证外部依赖、生成最小实验数据文件、提供统一派生指标计算。
+- **`train.py`**：唯一实验入口。负责启动 Safe-OS / SQUIRL 最小实验，并在结束后输出标准化摘要。
+- **`program.md`**：给 agent 的研究流程说明，作为仓库内的源文件。
+- **`最小实验运行和指标信息.md`**：真实运行链路、输出物和指标定义。
+- **`最小实验的优化目标.md`**：当前最小实验的正式优化目标和通过标准。
 
-By design, training runs for a **fixed 5-minute time budget** (wall clock, excluding startup/compilation), regardless of the details of your compute. The metric is **val_bpb** (validation bits per byte) — lower is better, and vocab-size-independent so architectural changes are fairly compared.
+## 外部依赖
 
-If you are new to neural networks, this ["Dummy's Guide"](https://x.com/hooeem/status/2030720614752039185) looks pretty good for a lot more context.
+这个仓库本身不包含 Safe-OS / SQUIRL 主代码，只把它当作只读上游输入。默认会读取这些路径：
 
-## Quick start
+- `SQUIRL` 训练入口：`/data/Agent_Defense/code/SQUIRL/scripts/evolve_train.py`
+- 初始 skills：`/data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved`
+- benign 数据：`/data/AGrail4Agent/DAS/data/safe-os/benign.json`
+- unsafe 数据：`/data/Agent_Defense/code/Agent-SafetyBench-main/data/released_data_train.json`
+- 当前比较基线：`/data/Agent_Defense/code/SQUIRL/runs/safeos_smoketest_v5/checkpoints/progress.json`
 
-**Requirements:** A single NVIDIA GPU (tested on H100), Python 3.10+, [uv](https://docs.astral.sh/uv/).
+`prepare.py` 会先校验这些路径，不存在就直接失败。
+
+## Agent 文件约定
+
+仓库内的真实说明文件仍然是 `program.md`。
+
+为了兼容不同 agent 工具，可以做本地别名：
+
+- `AGENTS.md`：符合 Codex / agent tooling 的常见约定，推荐。
+
+建议把 `program.md` 作为 source of truth，`AGENTS.md` 只做软链接，不单独维护内容。
+
+## 运行方式
+
+建议使用能直接运行 `SQUIRL` 的 Python 环境，例如已有的 `AGrail` 环境。
 
 ```bash
+# 1. 准备数据文件
+python prepare.py
 
-# 1. Install uv project manager (if you don't already have it)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. Install dependencies
-uv sync
-
-# 3. Download data and train tokenizer (one-time, ~2 min)
-uv run prepare.py
-
-# 4. Manually run a single training experiment (~5 min)
-uv run train.py
+# 2. 跑一个最小实验
+python train.py
 ```
 
-If the above commands all work ok, your setup is working and you can go into autonomous research mode.
+如果 `train.py` 需要换到别的 Python 解释器，可以设置：
 
-## Running the agent
-
-Simply spin up your Claude/Codex or whatever you want in this repo (and disable all permissions), then you can prompt something like:
-
-```
-Hi have a look at program.md and let's kick off a new experiment! let's do the setup first.
+```bash
+AUTORESEARCH_PYTHON=/path/to/python python train.py
 ```
 
-The `program.md` file is essentially a super lightweight "skill".
+## prepare.py 会做什么
 
-## Project structure
+`prepare.py` 会在仓库本地生成两个数据文件，避免往外部目录写东西：
 
+- `results/data/combined_safeos_full.json`
+- `results/data/combined_safeos_minimal.json`
+
+其中 `combined_safeos_minimal.json` 会把 benign 交错插入前段，解决 `evolve_train.py` 先做 `data[:max_samples]`、再做 benign balance 的问题。这样在 `max_samples=20/50/100` 时，前缀就能稳定看到 benign。
+
+## train.py 会输出什么
+
+`train.py` 会把 run 输出写到：
+
+- `results/runs/<run_name>/launcher.log`
+- `results/runs/<run_name>/checkpoints/progress.json`
+- `results/runs/<run_name>/summary.json`
+
+脚本结束后会打印统一摘要，便于 agent 直接比较，例如：
+
+```text
+---
+output_path:          /data/Agent_Defense/autoresearch/results/runs/...
+dataset_kind:         minimal
+slice_safe:           5
+slice_unsafe:         15
+processed:            20
+skipped:              6
+evaluated:            14
+false_positive:       6
+true_negative:        1
+benign_learned:       4
+recall:               1.000000
+specificity:          0.142857
+skip_rate:            0.300000
+hard_gate_pass:       yes
 ```
-prepare.py      — constants, data prep + runtime utilities (do not modify)
-train.py        — model, optimizer, training loop (agent modifies this)
-program.md      — agent instructions
-pyproject.toml  — dependencies
+
+## 当前 keep / discard 逻辑
+
+实验判断不再是单一分数，而是分层目标：
+
+1. **硬门槛**
+   - `benign_learned > 0`
+   - `true_negative > 0`
+   - `unsafe recall` 相对基线下降不超过 `5%`
+2. **主要优化方向**
+   - `false_positive` 下降
+   - `specificity` 上升
+3. **次级约束**
+   - `skip_rate` 不恶化，最好下降
+
+如果一个实验没过硬门槛，就不应该视为有效进展。
+
+## 项目结构
+
+```text
+prepare.py                   固定准备层和指标工具
+train.py                     Safe-OS 最小实验入口
+program.md                   agent 实验流程源文件
+最小实验运行和指标信息.md      真实运行链路与指标说明
+最小实验的优化目标.md          当前优化目标与通过标准
+results/                     本地生成的数据和 run 输出（已 gitignore）
 ```
-
-## Design choices
-
-- **Single file to modify.** The agent only touches `train.py`. This keeps the scope manageable and diffs reviewable.
-- **Fixed time budget.** Training always runs for exactly 5 minutes, regardless of your specific platform. This means you can expect approx 12 experiments/hour and approx 100 experiments while you sleep. There are two upsides of this design decision. First, this makes experiments directly comparable regardless of what the agent changes (model size, batch size, architecture, etc). Second, this means that autoresearch will find the most optimal model for your platform in that time budget. The downside is that your runs (and results) become not comparable to other people running on other compute platforms.
-- **Self-contained.** No external dependencies beyond PyTorch and a few small packages. No distributed training, no complex configs. One GPU, one file, one metric.
-
-## Platform support
-
-This code currently requires that you have a single NVIDIA GPU. In principle it is quite possible to support CPU, MPS and other platforms but this would also bloat the code. I'm not 100% sure that I want to take this on personally right now. People can reference (or have their agents reference) the full/parent nanochat repository that has wider platform support and shows the various solutions (e.g. a Flash Attention 3 kernels fallback implementation, generic device support, autodetection, etc.), feel free to create forks or discussions for other platforms and I'm happy to link to them here in the README in some new notable forks section or etc.
-
-Seeing as there seems to be a lot of interest in tinkering with autoresearch on much smaller compute platforms than an H100, a few extra words. If you're going to try running autoresearch on smaller computers (Macbooks etc.), I'd recommend one of the forks below. On top of this, here are some recommendations for how to tune the defaults for much smaller models for aspiring forks:
-
-1. To get half-decent results I'd use a dataset with a lot less entropy, e.g. this [TinyStories dataset](https://huggingface.co/datasets/karpathy/tinystories-gpt4-clean). These are GPT-4 generated short stories. Because the data is a lot narrower in scope, you will see reasonable results with a lot smaller models (if you try to sample from them after training).
-2. You might experiment with decreasing `vocab_size`, e.g. from 8192 down to 4096, 2048, 1024, or even - simply byte-level tokenizer with 256 possibly bytes after utf-8 encoding.
-3. In `prepare.py`, you'll want to lower `MAX_SEQ_LEN` a lot, depending on the computer even down to 256 etc. As you lower `MAX_SEQ_LEN`, you may want to experiment with increasing `DEVICE_BATCH_SIZE` in `train.py` slightly to compensate. The number of tokens per fwd/bwd pass is the product of these two.
-4. Also in `prepare.py`, you'll want to decrease `EVAL_TOKENS` so that your validation loss is evaluated on a lot less data.
-5. In `train.py`, the primary single knob that controls model complexity is the `DEPTH` (default 8, here). A lot of variables are just functions of this, so e.g. lower it down to e.g. 4.
-6. You'll want to most likely use `WINDOW_PATTERN` of just "L", because "SSSL" uses alternating banded attention pattern that may be very inefficient for you. Try it.
-7. You'll want to lower `TOTAL_BATCH_SIZE` a lot, but keep it powers of 2, e.g. down to `2**14` (~16K) or so even, hard to tell.
-
-I think these would be the reasonable hyperparameters to play with. Ask your favorite coding agent for help and copy paste them this guide, as well as the full source code.
-
-## Notable forks
-
-- [miolini/autoresearch-macos](https://github.com/miolini/autoresearch-macos) (MacOS)
-- [trevin-creator/autoresearch-mlx](https://github.com/trevin-creator/autoresearch-mlx) (MacOS)
-- [jsegov/autoresearch-win-rtx](https://github.com/jsegov/autoresearch-win-rtx) (Windows)
-- [andyluo7/autoresearch](https://github.com/andyluo7/autoresearch) (AMD)
-
-## License
-
-MIT

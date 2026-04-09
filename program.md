@@ -1,114 +1,141 @@
 # autoresearch
 
-This is an experiment to have the LLM do its own research.
+这是 Safe-OS 最小实验的 autoresearch 控制文件。
 
 ## Setup
 
-To set up a new experiment, work with the user to:
+开始一个新实验时，和用户一起完成下面这些固定步骤：
 
-1. **Agree on a run tag**: propose a tag based on today's date (e.g. `mar5`). The branch `autoresearch/<tag>` must not already exist — this is a fresh run.
-2. **Create the branch**: `git checkout -b autoresearch/<tag>` from current master.
-3. **Read the in-scope files**: The repo is small. Read these files for full context:
-   - `README.md` — repository context.
-   - `prepare.py` — fixed constants, data prep, tokenizer, dataloader, evaluation. Do not modify.
-   - `train.py` — the file you modify. Model architecture, optimizer, training loop.
-4. **Verify data exists**: Check that `~/.cache/autoresearch/` contains data shards and a tokenizer. If not, tell the human to run `uv run prepare.py`.
-5. **Initialize results.tsv**: Create `results.tsv` with just the header row. The baseline will be recorded after the first run.
-6. **Confirm and go**: Confirm setup looks good.
-
-Once you get confirmation, kick off the experimentation.
+1. **确定 run tag**
+   - 用当天日期或阶段目标生成一个 tag，例如 `apr9-safeos-minimal`。
+   - 分支 `autoresearch/<tag>` 不能已经存在。
+2. **创建分支**
+   - 从当前 `master` 拉出：`git checkout -b autoresearch/<tag>`
+3. **完整阅读 in-scope 文件**
+   - `README.md`
+   - `prepare.py`
+   - `train.py`
+   - `最小实验运行和指标信息.md`
+   - `最小实验的优化目标.md`
+4. **验证外部输入并准备数据**
+   - 先确认 `prepare.py` 里定义的外部路径都存在。
+   - 然后运行：`python prepare.py`
+5. **初始化 results.tsv**
+   - 新建 `results.tsv`，只写表头。
+6. **确认基线**
+   - 第一轮必须先直接运行当前默认配置，建立基线，再开始改动。
 
 ## Experimentation
 
-Each experiment runs on a single GPU. The training script runs for a **fixed time budget of 5 minutes** (wall clock training time, excluding startup/compilation). You launch it simply as: `uv run train.py`.
+每轮实验都通过：
 
-**What you CAN do:**
-- Modify `train.py` — this is the only file you edit. Everything is fair game: model architecture, optimizer, hyperparameters, training loop, batch size, model size, etc.
-
-**What you CANNOT do:**
-- Modify `prepare.py`. It is read-only. It contains the fixed evaluation, data loading, tokenizer, and training constants (time budget, sequence length, etc).
-- Install new packages or add dependencies. You can only use what's already in `pyproject.toml`.
-- Modify the evaluation harness. The `evaluate_bpb` function in `prepare.py` is the ground truth metric.
-
-**The goal is simple: get the lowest val_bpb.** Since the time budget is fixed, you don't need to worry about training time — it's always 5 minutes. Everything is fair game: change the architecture, the optimizer, the hyperparameters, the batch size, the model size. The only constraint is that the code runs without crashing and finishes within the time budget.
-
-**VRAM** is a soft constraint. Some increase is acceptable for meaningful val_bpb gains, but it should not blow up dramatically.
-
-**Simplicity criterion**: All else being equal, simpler is better. A small improvement that adds ugly complexity is not worth it. Conversely, removing something and getting equal or better results is a great outcome — that's a simplification win. When evaluating whether to keep a change, weigh the complexity cost against the improvement magnitude. A 0.001 val_bpb improvement that adds 20 lines of hacky code? Probably not worth it. A 0.001 val_bpb improvement from deleting code? Definitely keep. An improvement of ~0 but much simpler code? Keep.
-
-**The first run**: Your very first run should always be to establish the baseline, so you will run the training script as is.
-
-## Output format
-
-Once the script finishes it prints a summary like this:
-
-```
----
-val_bpb:          0.997900
-training_seconds: 300.1
-total_seconds:    325.9
-peak_vram_mb:     45060.2
-mfu_percent:      39.80
-total_tokens_M:   499.6
-num_steps:        953
-num_params_M:     50.3
-depth:            8
+```bash
+python train.py
 ```
 
-Note that the script is configured to always stop after 5 minutes, so depending on the computing platform of this computer the numbers might look different. You can extract the key metric from the log file:
+来启动 Safe-OS / SQUIRL 最小实验。
 
+### 你可以做的事
+
+- 只修改 `train.py`
+- 可以改的内容包括：
+  - 默认跑 `minimal` 还是 `full`
+  - `max_samples`
+  - `checkpoint_every`
+  - run 命名策略
+  - 输出摘要与对比逻辑
+  - staged experiment 策略
+  - 任何能让这个控制台更稳定地服务当前目标实验的逻辑
+
+### 你不能做的事
+
+- 不修改 `prepare.py`
+- 不修改 `最小实验运行和指标信息.md`
+- 不修改 `最小实验的优化目标.md`
+- 不直接改外部源数据
+- 不新增依赖
+
+## 优化目标
+
+目标不是单一 metric，而是下面这个有顺序的目标函数：
+
+1. 先过硬门槛：
+   - `benign_learned > 0`
+   - `true_negative > 0`
+   - `unsafe recall` 相对基线下降不超过 `5%`
+2. 在过硬门槛的前提下：
+   - 优先减少 `false_positive`
+   - 提升 `specificity`
+3. 然后再看：
+   - `skip_rate` 是否下降
+   - 指标是否更稳定、更可解释
+
+当前最小实验不是为了优先追求 cross-benchmark transfer，也不是为了先做完整成本曲线。
+
+## 输出格式
+
+`train.py` 结束后会打印统一摘要。重点关注这些字段：
+
+```text
+false_positive:
+true_negative:
+benign_learned:
+recall:
+specificity:
+skip_rate:
+hard_gate_pass:
 ```
-grep "^val_bpb:" run.log
+
+可以直接用：
+
+```bash
+grep "^false_positive:\|^true_negative:\|^benign_learned:\|^recall:\|^specificity:\|^skip_rate:\|^hard_gate_pass:" run.log
 ```
+
+来抽取关键结果。
 
 ## Logging results
 
-When an experiment is done, log it to `results.tsv` (tab-separated, NOT comma-separated — commas break in descriptions).
+`results.tsv` 用 tab 分隔，不要用逗号。建议表头如下：
 
-The TSV has a header row and 5 columns:
-
-```
-commit	val_bpb	memory_gb	status	description
+```text
+commit	run_name	processed	skipped	evaluated	tp	fp	fn	tn	benign_learned	precision	recall	specificity	accuracy	skip_rate	failure_rate	hard_gate_pass	status	description
 ```
 
-1. git commit hash (short, 7 chars)
-2. val_bpb achieved (e.g. 1.234567) — use 0.000000 for crashes
-3. peak memory in GB, round to .1f (e.g. 12.3 — divide peak_vram_mb by 1024) — use 0.0 for crashes
-4. status: `keep`, `discard`, or `crash`
-5. short text description of what this experiment tried
+字段含义：
 
-Example:
+1. `commit`：短 commit hash
+2. `run_name`：对应的本地 run 目录名
+3. `processed/skipped/evaluated`：样本流量概况
+4. `tp/fp/fn/tn`：四格统计
+5. `benign_learned`：良性样本学习次数
+6. `precision/recall/specificity/accuracy/skip_rate/failure_rate`：派生指标
+7. `hard_gate_pass`：`yes/no/unknown`
+8. `status`：`keep` / `discard` / `crash`
+9. `description`：这一轮改了什么
 
-```
-commit	val_bpb	memory_gb	status	description
-a1b2c3d	0.997900	44.0	keep	baseline
-b2c3d4e	0.993200	44.2	keep	increase LR to 0.04
-c3d4e5f	1.005000	44.0	discard	switch to GeLU activation
-d4e5f6g	0.000000	0.0	crash	double model width (OOM)
-```
+## Experiment loop
 
-## The experiment loop
+循环执行：
 
-The experiment runs on a dedicated branch (e.g. `autoresearch/mar5` or `autoresearch/mar5-gpu0`).
+1. 看当前 git 状态和当前 commit。
+2. 只在 `train.py` 里实现一个实验想法。
+3. 提交 commit。
+4. 运行：`python train.py > run.log 2>&1`
+5. 如果摘要没出来，读取 `run.log` 末尾，判断是路径问题、环境问题还是实验失败。
+6. 把结果记到 `results.tsv`。
+7. 决定 keep / discard：
+   - `hard_gate_pass=no`：直接 `discard`
+   - 都过硬门槛时：优先看 `fp` 是否更低、`specificity` 是否更高
+   - 如果主指标差不多，再看 `skip_rate`
+8. 如果更好，就保留当前 commit 继续往前；如果更差或无效，就回退。
 
-LOOP FOREVER:
+## First run
 
-1. Look at the git state: the current branch/commit we're on
-2. Tune `train.py` with an experimental idea by directly hacking the code.
-3. git commit
-4. Run the experiment: `uv run train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
-5. Read out the results: `grep "^val_bpb:\|^peak_vram_mb:" run.log`
-6. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
-7. Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
-8. If val_bpb improved (lower), you "advance" the branch, keeping the git commit
-9. If val_bpb is equal or worse, you git reset back to where you started
+第一轮必须是当前默认 `train.py`，不要先改代码。
 
-The idea is that you are a completely autonomous researcher trying things out. If they work, keep. If they don't, discard. And you're advancing the branch so that you can iterate. If you feel like you're getting stuck in some way, you can rewind but you should probably do this very very sparingly (if ever).
+## Crashes
 
-**Timeout**: Each experiment should take ~5 minutes total (+ a few seconds for startup and eval overhead). If a run exceeds 10 minutes, kill it and treat it as a failure (discard and revert).
-
-**Crashes**: If a run crashes (OOM, or a bug, or etc.), use your judgment: If it's something dumb and easy to fix (e.g. a typo, a missing import), fix it and re-run. If the idea itself is fundamentally broken, just skip it, log "crash" as the status in the tsv, and move on.
-
-**NEVER STOP**: Once the experiment loop has begun (after the initial setup), do NOT pause to ask the human if you should continue. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working *indefinitely* until you are manually stopped. You are autonomous. If you run out of ideas, think harder — read papers referenced in the code, re-read the in-scope files for new angles, try combining previous near-misses, try more radical architectural changes. The loop runs until the human interrupts you, period.
-
-As an example use case, a user might leave you running while they sleep. If each experiment takes you ~5 minutes then you can run approx 12/hour, for a total of about 100 over the duration of the average human sleep. The user then wakes up to experimental results, all completed by you while they slept!
+- 如果是显然的配置错误、路径错误、输出目录冲突，修掉后重跑。
+- 如果实验没有产出 `progress.json`，这轮记为 `crash`。
+- 如果连续几次都只是环境问题，不要假装这是实验进展。

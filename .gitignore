@@ -12,7 +12,7 @@ worktrees/
 results/
 queue/
 
-# Agent prompt files (generated per-session by launchers)
+# Agent prompt files / local aliases
 CLAUDE.md
 AGENTS.md
 
