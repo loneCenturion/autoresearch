@@ -76,6 +76,29 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Override the auto-generated run directory name",
     )
+    parser.add_argument(
+        "--dataset-kind",
+        choices=("minimal", "full"),
+        default=None,
+        help="Override the dataset view for this run without editing train.py constants",
+    )
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="Override the training slice size for this run (-1 means full prepared dataset)",
+    )
+    parser.add_argument(
+        "--checkpoint-every",
+        type=int,
+        default=None,
+        help="Override the checkpoint frequency for this run",
+    )
+    parser.add_argument(
+        "--allow-debug-git-state",
+        action="store_true",
+        help="Bypass formal experiment git checks (master / non-autoresearch branch / dirty worktree). Use only for debug runs.",
+    )
     return parser.parse_args()
 
 
@@ -154,12 +177,61 @@ def print_runtime_help(python_bin: Path, missing_modules: list[str]) -> None:
     print("Then rerun `python train.py`.")
 
 
-def selected_dataset_path() -> Path:
-    if DATASET_KIND == "minimal":
+def selected_dataset_path(dataset_kind: str) -> Path:
+    if dataset_kind == "minimal":
         return MINIMAL_DATA_PATH
-    if DATASET_KIND == "full":
+    if dataset_kind == "full":
         return FULL_DATA_PATH
-    raise ValueError(f"Unsupported DATASET_KIND: {DATASET_KIND}")
+    raise ValueError(f"Unsupported DATASET_KIND: {dataset_kind}")
+
+
+def run_git_command(*git_args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *git_args],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def resolve_git_state() -> dict[str, Any]:
+    branch_cmd = run_git_command("branch", "--show-current")
+    commit_cmd = run_git_command("rev-parse", "--short", "HEAD")
+    status_cmd = run_git_command("status", "--short")
+
+    available = all(cmd.returncode == 0 for cmd in (branch_cmd, commit_cmd, status_cmd))
+    branch = branch_cmd.stdout.strip() if branch_cmd.returncode == 0 else ""
+    commit = commit_cmd.stdout.strip() if commit_cmd.returncode == 0 else ""
+    status_lines = [line for line in status_cmd.stdout.splitlines() if line.strip()] if status_cmd.returncode == 0 else []
+
+    return {
+        "available": available,
+        "branch": branch or "unknown",
+        "commit": commit or "unknown",
+        "status_lines": status_lines,
+        "worktree_dirty": bool(status_lines),
+        "formal_branch": branch.startswith("autoresearch/"),
+        "on_master": branch == "master",
+    }
+
+
+def validate_formal_git_state(git_state: dict[str, Any]) -> list[str]:
+    if not git_state["available"]:
+        return ["Unable to resolve git branch / commit / status information."]
+
+    errors: list[str] = []
+    if git_state["on_master"]:
+        errors.append("Formal experiments cannot run on `master`.")
+    elif not git_state["formal_branch"]:
+        errors.append(
+            f"Formal experiments must run on an `autoresearch/*` branch (current: {git_state['branch']})."
+        )
+
+    if git_state["worktree_dirty"]:
+        errors.append("Formal experiments require a clean worktree.")
+
+    return errors
 
 
 def dataset_slice_summary(dataset_path: Path, max_samples: int) -> dict[str, int]:
@@ -181,17 +253,24 @@ def dataset_slice_summary(dataset_path: Path, max_samples: int) -> dict[str, int
     }
 
 
-def build_output_name(cli_output_name: str | None) -> str:
+def build_output_name(cli_output_name: str | None, dataset_kind: str, max_samples: int, git_commit: str) -> str:
     if cli_output_name:
         return cli_output_name
     if RUN_NAME:
         return RUN_NAME
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    return f"{RUN_PREFIX}_{DATASET_KIND}_{MAX_SAMPLES}_{timestamp}"
+    return f"{RUN_PREFIX}_{dataset_kind}_{max_samples}_{git_commit}_{timestamp}"
 
 
-def build_command(python_bin: Path, dataset_path: Path, output_path: Path) -> list[str]:
+def build_command(
+    python_bin: Path,
+    dataset_path: Path,
+    output_path: Path,
+    model_name: str,
+    max_samples: int,
+    checkpoint_every: int,
+) -> list[str]:
     command = [
         str(python_bin),
         str(EVOLVE_WRAPPER),
@@ -202,11 +281,11 @@ def build_command(python_bin: Path, dataset_path: Path, output_path: Path) -> li
         "--output_path",
         str(output_path),
         "--model",
-        MODEL_NAME,
+        model_name,
         "--max_samples",
-        str(MAX_SAMPLES),
+        str(max_samples),
         "--checkpoint_every",
-        str(CHECKPOINT_EVERY),
+        str(checkpoint_every),
     ]
     if USE_V5:
         command.append("--v5")
@@ -261,6 +340,9 @@ def print_summary(summary: dict[str, Any]) -> None:
         "summary_json",
         "dataset_path",
         "dataset_kind",
+        "git_branch",
+        "git_commit",
+        "git_worktree_dirty",
         "slice_total",
         "slice_safe",
         "slice_unsafe",
@@ -303,6 +385,27 @@ def print_summary(summary: dict[str, Any]) -> None:
 
 def main() -> int:
     args = parse_args()
+    dataset_kind = args.dataset_kind or DATASET_KIND
+    max_samples = args.max_samples if args.max_samples is not None else MAX_SAMPLES
+    checkpoint_every = args.checkpoint_every if args.checkpoint_every is not None else CHECKPOINT_EVERY
+    git_state = resolve_git_state()
+    git_errors = validate_formal_git_state(git_state)
+
+    if not args.dry_run and git_errors and not args.allow_debug_git_state:
+        print("Refusing to start a formal experiment with the current git state:")
+        for error in git_errors:
+            print(f"  - {error}")
+        print(f"Git branch:      {git_state['branch']}")
+        print(f"Git commit:      {git_state['commit']}")
+        if git_state["status_lines"]:
+            print("Git status:")
+            for line in git_state["status_lines"]:
+                print(f"  {line}")
+        else:
+            print("Git status:      clean")
+        print()
+        print("Commit or switch branches first, or rerun with `--allow-debug-git-state` for a non-formal debug run.")
+        return 1
 
     missing = verify_required_paths()
     if missing:
@@ -311,7 +414,7 @@ def main() -> int:
             print(f"  - {name}: {path}")
         return 1
 
-    dataset_path = selected_dataset_path()
+    dataset_path = selected_dataset_path(dataset_kind)
     if not dataset_path.exists():
         print(f"Missing prepared dataset: {dataset_path}")
         print("Run `python prepare.py` first.")
@@ -326,8 +429,8 @@ def main() -> int:
         print(f"Missing local wrapper: {EVOLVE_WRAPPER}")
         return 1
 
-    slice_summary = dataset_slice_summary(dataset_path, MAX_SAMPLES)
-    output_name = build_output_name(args.output_name)
+    slice_summary = dataset_slice_summary(dataset_path, max_samples)
+    output_name = build_output_name(args.output_name, dataset_kind, max_samples, git_state["commit"])
     output_path = RUNS_ROOT / output_name
     launcher_log = output_path / "launcher.log"
     summary_json = output_path / "summary.json"
@@ -337,13 +440,28 @@ def main() -> int:
         print("Set RUN_NAME / --output-name to a new value or enable RESUME.")
         return 1
 
-    command = build_command(python_bin, dataset_path, output_path)
+    command = build_command(
+        python_bin,
+        dataset_path,
+        output_path,
+        MODEL_NAME,
+        max_samples,
+        checkpoint_every,
+    )
 
     print(f"Repository root: {Path(__file__).resolve().parent}")
     print(f"Results root:    {RESULTS_ROOT}")
     print(f"Data root:       {DATA_ROOT}")
     print(f"Working dir:     {CODE_ROOT}")
     print(f"Runtime python:  {python_bin}")
+    print(f"Git branch:      {git_state['branch']}")
+    print(f"Git commit:      {git_state['commit']}")
+    print(f"Git status:      {'dirty' if git_state['worktree_dirty'] else 'clean'}")
+    if git_state["status_lines"]:
+        for line in git_state["status_lines"]:
+            print(f"  {line}")
+    if git_errors and args.allow_debug_git_state:
+        print("Git policy:      debug override enabled")
     print(f"Output path:     {output_path}")
     print(f"Command:         {shlex.join(command)}")
     print(
@@ -362,6 +480,18 @@ def main() -> int:
         handle.write("# Autoresearch Safe-OS launcher log\n")
         handle.write(f"# command = {shlex.join(command)}\n")
         handle.write(f"# cwd = {CODE_ROOT}\n\n")
+        handle.write(f"# git_branch = {git_state['branch']}\n")
+        handle.write(f"# git_commit = {git_state['commit']}\n")
+        handle.write(f"# git_worktree_dirty = {git_state['worktree_dirty']}\n")
+        if git_state["status_lines"]:
+            handle.write("# git_status_short =\n")
+            for line in git_state["status_lines"]:
+                handle.write(f"#   {line}\n")
+        else:
+            handle.write("# git_status_short = <clean>\n")
+        if git_errors and args.allow_debug_git_state:
+            handle.write("# git_policy_override = allow-debug-git-state\n")
+        handle.write("\n")
         handle.flush()
         completed = subprocess.run(
             command,
@@ -406,7 +536,11 @@ def main() -> int:
         "launcher_log": launcher_log,
         "summary_json": summary_json,
         "dataset_path": dataset_path,
-        "dataset_kind": DATASET_KIND,
+        "dataset_kind": dataset_kind,
+        "git_branch": git_state["branch"],
+        "git_commit": git_state["commit"],
+        "git_worktree_dirty": git_state["worktree_dirty"],
+        "git_status_short": git_state["status_lines"],
         "slice_total": slice_summary["slice_total"],
         "slice_safe": slice_summary["slice_safe"],
         "slice_unsafe": slice_summary["slice_unsafe"],
