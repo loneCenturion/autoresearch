@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import copy
 import os
 import shlex
 import shutil
@@ -51,7 +52,7 @@ DATASET_KIND = "minimal"  # "minimal" or "full"
 MODEL_NAME = "gpt-5.2"
 MAX_SAMPLES = 70
 CHECKPOINT_EVERY = 35
-SKILLS_SOURCE_MODE = "base"  # "base", "latest-keep", or "experimental-candidate"
+SKILLS_SOURCE_MODE = "latest-keep"  # "base", "latest-keep", or "experimental-candidate"
 EXPERIMENTAL_SOURCE_RUN_NAME = "safeos_minimal_minimal_70_8b40907_20260410_013631"
 USE_V5 = True
 RESUME = False
@@ -76,12 +77,17 @@ CURRICULUM_STAGES: list[dict[str, Any]] = [
         ],
     },
     {
-        "name": "curriculum_bash_calibration",
+        "name": "curriculum_safe_first_steps",
         "checkpoint_every": 4,
         "sample_ids": [
             1619,
             1432,
             83,
+            {"id": 478, "label_override": 0, "tag": "safe-step"},
+            {"id": 352, "label_override": 0, "tag": "safe-step"},
+            {"id": 528, "label_override": 0, "tag": "safe-step"},
+            {"id": 1013, "label_override": 0, "tag": "safe-step"},
+            {"id": 1672, "label_override": 0, "tag": "safe-step"},
             "benign_0",
             "benign_1",
             "benign_2",
@@ -410,6 +416,27 @@ def sample_id_key(sample_id: Any) -> str:
     return str(sample_id)
 
 
+def curriculum_sample_token(spec: Any) -> str:
+    if not isinstance(spec, dict):
+        return sample_id_key(spec)
+
+    sample_id = sample_id_key(spec.get("id"))
+    suffix: list[str] = []
+    if "label_override" in spec:
+        suffix.append(f"label={spec['label_override']}")
+    if spec.get("tag"):
+        suffix.append(str(spec["tag"]))
+    if not suffix:
+        return sample_id
+    return f"{sample_id}[{','.join(suffix)}]"
+
+
+def curriculum_sample_id(spec: Any) -> str:
+    if isinstance(spec, dict):
+        return sample_id_key(spec.get("id"))
+    return sample_id_key(spec)
+
+
 def build_sample_lookup(*dataset_paths: Path) -> dict[str, dict[str, Any]]:
     lookup: dict[str, dict[str, Any]] = {}
     for dataset_path in dataset_paths:
@@ -418,8 +445,8 @@ def build_sample_lookup(*dataset_paths: Path) -> dict[str, dict[str, Any]]:
     return lookup
 
 
-def resolve_curriculum_samples(sample_ids: list[str | int], dataset_kind: str) -> list[dict[str, Any]]:
-    if not sample_ids or dataset_kind != "minimal" or not CURRICULUM_ENABLED:
+def resolve_curriculum_samples(sample_specs: list[Any], dataset_kind: str) -> list[dict[str, Any]]:
+    if not sample_specs or dataset_kind != "minimal" or not CURRICULUM_ENABLED:
         return []
 
     source_paths = [selected_dataset_path(CURRICULUM_DATASET_KIND), FULL_DATA_PATH, MINIMAL_DATA_PATH]
@@ -427,12 +454,20 @@ def resolve_curriculum_samples(sample_ids: list[str | int], dataset_kind: str) -
     samples: list[dict[str, Any]] = []
     missing: list[str] = []
 
-    for sample_id in sample_ids:
-        sample = lookup.get(sample_id_key(sample_id))
+    for spec in sample_specs:
+        sample_id = curriculum_sample_id(spec)
+        sample = lookup.get(sample_id)
         if sample is None:
-            missing.append(sample_id_key(sample_id))
+            missing.append(sample_id)
             continue
-        samples.append(sample)
+
+        sample_copy = copy.deepcopy(sample)
+        if isinstance(spec, dict):
+            if "label_override" in spec:
+                sample_copy["labels"] = int(spec["label_override"])
+            if "instruction_override" in spec:
+                sample_copy["instruction"] = str(spec["instruction_override"])
+        samples.append(sample_copy)
 
     if missing:
         raise ValueError(f"Missing curriculum sample IDs: {', '.join(missing)}")
@@ -446,10 +481,11 @@ def build_curriculum_plan(output_path: Path, dataset_kind: str) -> list[dict[str
     if CURRICULUM_STAGES:
         plan: list[dict[str, Any]] = []
         for idx, stage in enumerate(CURRICULUM_STAGES):
-            sample_ids = stage.get("sample_ids", [])
-            samples = resolve_curriculum_samples(sample_ids, dataset_kind)
+            sample_specs = stage.get("sample_ids", [])
+            samples = resolve_curriculum_samples(sample_specs, dataset_kind)
             if not samples:
                 continue
+            sample_tokens = [curriculum_sample_token(spec) for spec in sample_specs]
             checkpoint_every = max(
                 1,
                 min(int(stage.get("checkpoint_every", CURRICULUM_CHECKPOINT_EVERY)), len(samples)),
@@ -463,7 +499,7 @@ def build_curriculum_plan(output_path: Path, dataset_kind: str) -> list[dict[str
                     "output_path": stage_output,
                     "max_samples": -1,
                     "checkpoint_every": checkpoint_every,
-                    "sample_ids": [sample_id_key(sample.get("id")) for sample in samples],
+                    "sample_ids": sample_tokens,
                     "samples": samples,
                 }
             )
@@ -473,6 +509,7 @@ def build_curriculum_plan(output_path: Path, dataset_kind: str) -> list[dict[str
     if not samples or CURRICULUM_PASSES <= 0:
         return []
 
+    sample_tokens = [curriculum_sample_token(spec) for spec in CURRICULUM_SAMPLE_IDS]
     plan: list[dict[str, Any]] = []
     for idx in range(CURRICULUM_PASSES):
         stage_name = f"curriculum_pass_{idx + 1}"
@@ -484,7 +521,7 @@ def build_curriculum_plan(output_path: Path, dataset_kind: str) -> list[dict[str
                 "output_path": stage_output,
                 "max_samples": -1,
                 "checkpoint_every": max(1, min(CURRICULUM_CHECKPOINT_EVERY, len(samples))),
-                "sample_ids": [sample_id_key(sample.get("id")) for sample in samples],
+                "sample_ids": sample_tokens,
                 "samples": samples,
             }
         )
