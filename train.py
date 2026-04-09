@@ -58,21 +58,39 @@ CURRICULUM_ENABLED = True
 CURRICULUM_DATASET_KIND = "minimal"
 CURRICULUM_PASSES = 2
 CURRICULUM_CHECKPOINT_EVERY = 5
+CURRICULUM_STAGES: list[dict[str, Any]] = [
+    {
+        "name": "relax_false_positive_triggers",
+        "sample_ids": [
+            478,
+            1505,
+            528,
+        ],
+        "checkpoint_every": 3,
+    },
+    {
+        "name": "restore_recall_boundaries",
+        "sample_ids": [
+            1564,
+            1619,
+            1715,
+            1675,
+            352,
+            "benign_15",
+        ],
+        "checkpoint_every": 3,
+    },
+]
 CURRICULUM_SAMPLE_IDS: list[str | int] = [
-    "benign_8",
     478,
-    352,
-    528,
-    558,
-    612,
-    625,
-    284,
-    267,
-    1013,
     1505,
+    528,
     1564,
     1619,
     1715,
+    1675,
+    352,
+    "benign_15",
 ]
 
 SQUIRL_REQUIRED_MODULES = [
@@ -416,12 +434,39 @@ def resolve_curriculum_samples(sample_ids: list[str | int], dataset_kind: str) -
 
 
 def build_curriculum_plan(output_path: Path, dataset_kind: str) -> list[dict[str, Any]]:
+    if dataset_kind != "minimal" or not CURRICULUM_ENABLED:
+        return []
+
+    if CURRICULUM_STAGES:
+        plan: list[dict[str, Any]] = []
+        for idx, stage in enumerate(CURRICULUM_STAGES):
+            sample_ids = stage.get("sample_ids", [])
+            samples = resolve_curriculum_samples(sample_ids, dataset_kind)
+            if not samples:
+                continue
+            checkpoint_every = max(
+                1,
+                min(int(stage.get("checkpoint_every", CURRICULUM_CHECKPOINT_EVERY)), len(samples)),
+            )
+            stage_name = str(stage.get("name") or f"curriculum_pass_{idx + 1}")
+            stage_output = output_path / "_curriculum" / stage_name
+            plan.append(
+                {
+                    "name": stage_name,
+                    "dataset_path": output_path / "_curriculum" / f"{stage_name}.json",
+                    "output_path": stage_output,
+                    "max_samples": -1,
+                    "checkpoint_every": checkpoint_every,
+                    "sample_ids": [sample_id_key(sample.get("id")) for sample in samples],
+                    "samples": samples,
+                }
+            )
+        return plan
+
     samples = resolve_curriculum_samples(CURRICULUM_SAMPLE_IDS, dataset_kind)
     if not samples or CURRICULUM_PASSES <= 0:
         return []
 
-    dataset_path = output_path / "_curriculum" / "curriculum_dataset.json"
-    checkpoint_every = max(1, min(CURRICULUM_CHECKPOINT_EVERY, len(samples)))
     plan: list[dict[str, Any]] = []
     for idx in range(CURRICULUM_PASSES):
         stage_name = f"curriculum_pass_{idx + 1}"
@@ -429,10 +474,10 @@ def build_curriculum_plan(output_path: Path, dataset_kind: str) -> list[dict[str
         plan.append(
             {
                 "name": stage_name,
-                "dataset_path": dataset_path,
+                "dataset_path": output_path / "_curriculum" / "curriculum_dataset.json",
                 "output_path": stage_output,
                 "max_samples": -1,
-                "checkpoint_every": checkpoint_every,
+                "checkpoint_every": max(1, min(CURRICULUM_CHECKPOINT_EVERY, len(samples))),
                 "sample_ids": [sample_id_key(sample.get("id")) for sample in samples],
                 "samples": samples,
             }
@@ -703,9 +748,10 @@ def main() -> int:
         print("Git policy:      debug override enabled")
     print(f"Output path:     {output_path}")
     if curriculum_plan:
+        total_curriculum_samples = sum(len(stage["sample_ids"]) for stage in curriculum_plan)
         print(
             "Curriculum:      "
-            f"{len(curriculum_plan)} pass(es), {len(curriculum_plan[0]['sample_ids'])} sample(s) from {CURRICULUM_DATASET_KIND}"
+            f"{len(curriculum_plan)} stage(s), {total_curriculum_samples} sample(s) from {CURRICULUM_DATASET_KIND}"
         )
         for stage in curriculum_plan:
             print(
@@ -798,7 +844,8 @@ def main() -> int:
             f"curriculum_enabled = {bool(curriculum_plan)}",
             f"curriculum_stage_count = {len(curriculum_plan)}",
             f"curriculum_stage_names = {','.join(stage['name'] for stage in curriculum_plan)}",
-            f"curriculum_sample_ids = {','.join(curriculum_plan[0]['sample_ids'])}" if curriculum_plan else "curriculum_sample_ids = <none>",
+            *(f"curriculum_stage_sample_ids_{idx + 1} = {','.join(stage['sample_ids'])}" for idx, stage in enumerate(curriculum_plan)),
+            "curriculum_stage_sample_ids_0 = <none>" if not curriculum_plan else "",
             *(f"curriculum_stage_log_{idx + 1} = {stage['launcher_log']}" for idx, stage in enumerate(stage_summaries)),
             "git_policy_override = allow-debug-git-state" if git_errors and args.allow_debug_git_state else "",
         ],
@@ -845,8 +892,13 @@ def main() -> int:
         "curriculum_enabled": bool(curriculum_plan),
         "curriculum_stage_count": len(curriculum_plan),
         "curriculum_stage_names": ",".join(stage["name"] for stage in curriculum_plan) if curriculum_plan else "none",
-        "curriculum_sample_count": len(curriculum_plan[0]["sample_ids"]) if curriculum_plan else 0,
-        "curriculum_sample_ids": curriculum_plan[0]["sample_ids"] if curriculum_plan else [],
+        "curriculum_sample_count": sum(len(stage["sample_ids"]) for stage in curriculum_plan),
+        "curriculum_sample_ids": [sample_id for stage in curriculum_plan for sample_id in stage["sample_ids"]],
+        "curriculum_stage_sample_ids": {
+            stage["name"]: stage["sample_ids"] for stage in curriculum_plan
+        }
+        if curriculum_plan
+        else {},
         "curriculum_stages": stage_summaries,
         "git_branch": git_state["branch"],
         "git_commit": git_state["commit"],
