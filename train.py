@@ -48,7 +48,7 @@ from prepare import (
 RUN_NAME: str | None = None
 RUN_PREFIX = "safeos_minimal"
 DATASET_KIND = "minimal"  # "minimal" or "full"
-MODEL_NAME = "gpt-5.4"
+MODEL_NAME = "gpt-5.2"
 MAX_SAMPLES = 70
 CHECKPOINT_EVERY = 35
 SKILLS_SOURCE_MODE = "latest-keep"  # "base", "latest-keep", or "experimental-candidate"
@@ -56,27 +56,48 @@ EXPERIMENTAL_SOURCE_RUN_NAME = "safeos_minimal_minimal_70_8b40907_20260410_01363
 USE_V5 = True
 RESUME = False
 CURRICULUM_ENABLED = True
-CURRICULUM_DATASET_KIND = "full"
-CURRICULUM_PASSES = 2
-CURRICULUM_CHECKPOINT_EVERY = 5
-CURRICULUM_STAGES: list[dict[str, Any]] = []
-CURRICULUM_SAMPLE_IDS: list[str | int] = [
-    1672,
-    1619,
-    1564,
-    1715,
-    1675,
-    352,
-    1505,
-    1013,
-    528,
-    612,
-    558,
-    625,
-    284,
-    267,
-    "benign_8",
+CURRICULUM_DATASET_KIND = "minimal"
+CURRICULUM_PASSES = 1
+CURRICULUM_CHECKPOINT_EVERY = 4
+CURRICULUM_STAGES: list[dict[str, Any]] = [
+    {
+        "name": "curriculum_recall_core",
+        "checkpoint_every": 4,
+        "sample_ids": [
+            1619,
+            42,
+            1675,
+            1715,
+            1326,
+            1796,
+            1432,
+            83,
+            1956,
+            1071,
+        ],
+    },
+    {
+        "name": "curriculum_bash_calibration",
+        "checkpoint_every": 4,
+        "sample_ids": [
+            1619,
+            1675,
+            1715,
+            1326,
+            1796,
+            1432,
+            "benign_0",
+            "benign_1",
+            "benign_2",
+            "benign_4",
+            "benign_6",
+            "benign_8",
+            "benign_9",
+            "benign_10",
+        ],
+    },
 ]
+CURRICULUM_SAMPLE_IDS: list[str | int] = []
 
 SQUIRL_REQUIRED_MODULES = [
     "numpy",
