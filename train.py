@@ -49,11 +49,32 @@ RUN_NAME: str | None = None
 RUN_PREFIX = "safeos_minimal"
 DATASET_KIND = "minimal"  # "minimal" or "full"
 MODEL_NAME = "gpt-5.2"
-MAX_SAMPLES = 20
-CHECKPOINT_EVERY = 10
+MAX_SAMPLES = 70
+CHECKPOINT_EVERY = 35
 SKILLS_SOURCE_MODE = "latest-keep"  # "base" or "latest-keep"
 USE_V5 = True
 RESUME = False
+CURRICULUM_ENABLED = True
+CURRICULUM_DATASET_KIND = "full"
+CURRICULUM_PASSES = 2
+CURRICULUM_CHECKPOINT_EVERY = 5
+CURRICULUM_SAMPLE_IDS: list[str | int] = [
+    1672,
+    1619,
+    1564,
+    1715,
+    1675,
+    352,
+    1505,
+    1013,
+    528,
+    612,
+    558,
+    625,
+    284,
+    267,
+    "benign_8",
+]
 
 SQUIRL_REQUIRED_MODULES = [
     "numpy",
@@ -355,6 +376,71 @@ def build_command(
     return command
 
 
+def load_dataset_samples(path: Path) -> list[dict[str, Any]]:
+    payload = load_json(path)
+    if not isinstance(payload, list):
+        raise ValueError(f"Expected a JSON list in {path}")
+    return payload
+
+
+def sample_id_key(sample_id: Any) -> str:
+    return str(sample_id)
+
+
+def build_sample_lookup(*dataset_paths: Path) -> dict[str, dict[str, Any]]:
+    lookup: dict[str, dict[str, Any]] = {}
+    for dataset_path in dataset_paths:
+        for sample in load_dataset_samples(dataset_path):
+            lookup[sample_id_key(sample.get("id"))] = sample
+    return lookup
+
+
+def resolve_curriculum_samples(sample_ids: list[str | int], dataset_kind: str) -> list[dict[str, Any]]:
+    if not sample_ids or dataset_kind != "minimal" or not CURRICULUM_ENABLED:
+        return []
+
+    source_paths = [selected_dataset_path(CURRICULUM_DATASET_KIND), FULL_DATA_PATH, MINIMAL_DATA_PATH]
+    lookup = build_sample_lookup(*source_paths)
+    samples: list[dict[str, Any]] = []
+    missing: list[str] = []
+
+    for sample_id in sample_ids:
+        sample = lookup.get(sample_id_key(sample_id))
+        if sample is None:
+            missing.append(sample_id_key(sample_id))
+            continue
+        samples.append(sample)
+
+    if missing:
+        raise ValueError(f"Missing curriculum sample IDs: {', '.join(missing)}")
+    return samples
+
+
+def build_curriculum_plan(output_path: Path, dataset_kind: str) -> list[dict[str, Any]]:
+    samples = resolve_curriculum_samples(CURRICULUM_SAMPLE_IDS, dataset_kind)
+    if not samples or CURRICULUM_PASSES <= 0:
+        return []
+
+    dataset_path = output_path / "_curriculum" / "curriculum_dataset.json"
+    checkpoint_every = max(1, min(CURRICULUM_CHECKPOINT_EVERY, len(samples)))
+    plan: list[dict[str, Any]] = []
+    for idx in range(CURRICULUM_PASSES):
+        stage_name = f"curriculum_pass_{idx + 1}"
+        stage_output = output_path / "_curriculum" / stage_name
+        plan.append(
+            {
+                "name": stage_name,
+                "dataset_path": dataset_path,
+                "output_path": stage_output,
+                "max_samples": -1,
+                "checkpoint_every": checkpoint_every,
+                "sample_ids": [sample_id_key(sample.get("id")) for sample in samples],
+                "samples": samples,
+            }
+        )
+    return plan
+
+
 def build_runtime_env() -> dict[str, str]:
     env = os.environ.copy()
     env.setdefault("SQUIRL_EMBEDDING_BACKEND", "hash")
@@ -401,8 +487,14 @@ def print_summary(summary: dict[str, Any]) -> None:
         "summary_json",
         "dataset_path",
         "dataset_kind",
+        "initial_skills_db",
+        "initial_skills_db_source",
         "skills_db",
         "skills_db_source",
+        "curriculum_enabled",
+        "curriculum_stage_count",
+        "curriculum_stage_names",
+        "curriculum_sample_count",
         "git_branch",
         "git_commit",
         "git_worktree_dirty",
@@ -444,6 +536,75 @@ def print_summary(summary: dict[str, Any]) -> None:
     for key in ordered_keys:
         if key in summary:
             print(f"{key + ':':20s} {summary_value(summary[key])}")
+
+
+def write_launcher_header(
+    handle,
+    command: list[str],
+    git_state: dict[str, Any],
+    skills_db_path: Path,
+    skills_db_source: str,
+    extra_header_lines: list[str] | None = None,
+) -> None:
+    handle.write("# Autoresearch Safe-OS launcher log\n")
+    handle.write(f"# command = {shlex.join(command)}\n")
+    handle.write(f"# cwd = {CODE_ROOT}\n\n")
+    handle.write(f"# git_branch = {git_state['branch']}\n")
+    handle.write(f"# git_commit = {git_state['commit']}\n")
+    handle.write(f"# git_worktree_dirty = {git_state['worktree_dirty']}\n")
+    handle.write(f"# skills_db = {skills_db_path}\n")
+    handle.write(f"# skills_db_source = {skills_db_source}\n")
+    if git_state["status_lines"]:
+        handle.write("# git_status_short =\n")
+        for line in git_state["status_lines"]:
+            handle.write(f"#   {line}\n")
+    else:
+        handle.write("# git_status_short = <clean>\n")
+    if extra_header_lines:
+        for line in extra_header_lines:
+            if line:
+                handle.write(f"# {line}\n")
+    handle.write("\n")
+
+
+def run_logged_command(
+    command: list[str],
+    log_path: Path,
+    git_state: dict[str, Any],
+    skills_db_path: Path,
+    skills_db_source: str,
+    extra_header_lines: list[str] | None = None,
+) -> tuple[subprocess.CompletedProcess[str], float]:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    t0 = time.time()
+    with log_path.open("w", encoding="utf-8") as handle:
+        write_launcher_header(
+            handle,
+            command,
+            git_state,
+            skills_db_path,
+            skills_db_source,
+            extra_header_lines=extra_header_lines,
+        )
+        handle.flush()
+        completed = subprocess.run(
+            command,
+            cwd=CODE_ROOT,
+            env=build_runtime_env(),
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+    return completed, time.time() - t0
+
+
+def stage_failure_message(stage_name: str, log_path: Path) -> str:
+    tail = read_tail(log_path)
+    lines = [f"{stage_name} failed. Inspect: {log_path}"]
+    if tail:
+        lines.extend(["", "Last launcher log lines:", tail])
+    return "\n".join(lines)
 
 
 def main() -> int:
@@ -503,16 +664,21 @@ def main() -> int:
     output_path = RUNS_ROOT / output_name
     launcher_log = output_path / "launcher.log"
     summary_json = output_path / "summary.json"
+    curriculum_plan = build_curriculum_plan(output_path, dataset_kind)
+    initial_skills_db_path = skills_db_path
+    initial_skills_db_source = skills_db_source
+    final_stage_skills_db = curriculum_plan[-1]["output_path"] / "skills_evolved" if curriculum_plan else skills_db_path
+    final_stage_skills_source = curriculum_plan[-1]["name"] if curriculum_plan else skills_db_source
 
     if output_path.exists() and not RESUME:
         print(f"Refusing to overwrite existing run directory: {output_path}")
         print("Set RUN_NAME / --output-name to a new value or enable RESUME.")
         return 1
 
-    command = build_command(
+    final_command = build_command(
         python_bin,
         dataset_path,
-        skills_db_path,
+        final_stage_skills_db,
         output_path,
         MODEL_NAME,
         max_samples,
@@ -527,15 +693,27 @@ def main() -> int:
     print(f"Git branch:      {git_state['branch']}")
     print(f"Git commit:      {git_state['commit']}")
     print(f"Git status:      {'dirty' if git_state['worktree_dirty'] else 'clean'}")
-    print(f"Skills DB:       {skills_db_path}")
-    print(f"Skills source:   {skills_db_source}")
+    print(f"Initial skills:  {initial_skills_db_path}")
+    print(f"Initial source:  {initial_skills_db_source}")
+    print(f"Final skills DB: {final_stage_skills_db}")
+    print(f"Final source:    {final_stage_skills_source}")
     if git_state["status_lines"]:
         for line in git_state["status_lines"]:
             print(f"  {line}")
     if git_errors and args.allow_debug_git_state:
         print("Git policy:      debug override enabled")
     print(f"Output path:     {output_path}")
-    print(f"Command:         {shlex.join(command)}")
+    if curriculum_plan:
+        print(
+            "Curriculum:      "
+            f"{len(curriculum_plan)} pass(es), {len(curriculum_plan[0]['sample_ids'])} sample(s) from {CURRICULUM_DATASET_KIND}"
+        )
+        for stage in curriculum_plan:
+            print(
+                "  "
+                f"{stage['name']}: ids={','.join(stage['sample_ids'])} -> {stage['output_path']}"
+            )
+    print(f"Command:         {shlex.join(final_command)}")
     print(
         "Dataset slice:   "
         f"{slice_summary['slice_safe']} safe / {slice_summary['slice_unsafe']} unsafe "
@@ -548,34 +726,84 @@ def main() -> int:
     output_path.mkdir(parents=True, exist_ok=True)
 
     t0 = time.time()
-    with launcher_log.open("w", encoding="utf-8") as handle:
-        handle.write("# Autoresearch Safe-OS launcher log\n")
-        handle.write(f"# command = {shlex.join(command)}\n")
-        handle.write(f"# cwd = {CODE_ROOT}\n\n")
-        handle.write(f"# git_branch = {git_state['branch']}\n")
-        handle.write(f"# git_commit = {git_state['commit']}\n")
-        handle.write(f"# git_worktree_dirty = {git_state['worktree_dirty']}\n")
-        handle.write(f"# skills_db = {skills_db_path}\n")
-        handle.write(f"# skills_db_source = {skills_db_source}\n")
-        if git_state["status_lines"]:
-            handle.write("# git_status_short =\n")
-            for line in git_state["status_lines"]:
-                handle.write(f"#   {line}\n")
-        else:
-            handle.write("# git_status_short = <clean>\n")
-        if git_errors and args.allow_debug_git_state:
-            handle.write("# git_policy_override = allow-debug-git-state\n")
-        handle.write("\n")
-        handle.flush()
-        completed = subprocess.run(
-            command,
-            cwd=CODE_ROOT,
-            env=build_runtime_env(),
-            stdout=handle,
-            stderr=subprocess.STDOUT,
-            text=True,
-            check=False,
+    stage_summaries: list[dict[str, Any]] = []
+    current_skills_db = initial_skills_db_path
+    current_skills_source = initial_skills_db_source
+
+    for stage in curriculum_plan:
+        write_json(stage["dataset_path"], stage["samples"])
+        stage_slice_summary = dataset_slice_summary(stage["dataset_path"], stage["max_samples"])
+        stage_command = build_command(
+            python_bin,
+            stage["dataset_path"],
+            current_skills_db,
+            stage["output_path"],
+            MODEL_NAME,
+            stage["max_samples"],
+            stage["checkpoint_every"],
         )
+        stage_log = stage["output_path"] / "launcher.log"
+        stage_completed, stage_run_seconds = run_logged_command(
+            stage_command,
+            stage_log,
+            git_state,
+            current_skills_db,
+            current_skills_source,
+            extra_header_lines=[
+                "stage_type = curriculum",
+                f"stage_name = {stage['name']}",
+                f"stage_sample_ids = {','.join(stage['sample_ids'])}",
+                f"stage_slice_total = {stage_slice_summary['slice_total']}",
+            ],
+        )
+        stage_progress_path = stage["output_path"] / "checkpoints" / "progress.json"
+        if not stage_progress_path.exists():
+            print(stage_failure_message(stage["name"], stage_log))
+            return stage_completed.returncode or 1
+        if stage_completed.returncode != 0:
+            print(stage_failure_message(stage["name"], stage_log))
+            return stage_completed.returncode
+
+        stage_progress = load_json(stage_progress_path)
+        stage_metrics = derive_metrics(stage_progress.get("stats", {}))
+        stage_skills_db = stage["output_path"] / "skills_evolved"
+        if not stage_skills_db.exists():
+            print(f"{stage['name']} did not produce skills_evolved: {stage_skills_db}")
+            return 1
+
+        stage_summaries.append(
+            {
+                "name": stage["name"],
+                "dataset_path": stage["dataset_path"],
+                "output_path": stage["output_path"],
+                "launcher_log": stage_log,
+                "skills_db": stage_skills_db,
+                "skills_db_source": current_skills_source,
+                "run_seconds": stage_run_seconds,
+                "metrics": stage_metrics,
+                "sample_ids": stage["sample_ids"],
+            }
+        )
+        current_skills_db = stage_skills_db
+        current_skills_source = stage["name"]
+
+    completed, _ = run_logged_command(
+        final_command,
+        launcher_log,
+        git_state,
+        current_skills_db,
+        current_skills_source,
+        extra_header_lines=[
+            f"initial_skills_db = {initial_skills_db_path}",
+            f"initial_skills_db_source = {initial_skills_db_source}",
+            f"curriculum_enabled = {bool(curriculum_plan)}",
+            f"curriculum_stage_count = {len(curriculum_plan)}",
+            f"curriculum_stage_names = {','.join(stage['name'] for stage in curriculum_plan)}",
+            f"curriculum_sample_ids = {','.join(curriculum_plan[0]['sample_ids'])}" if curriculum_plan else "curriculum_sample_ids = <none>",
+            *(f"curriculum_stage_log_{idx + 1} = {stage['launcher_log']}" for idx, stage in enumerate(stage_summaries)),
+            "git_policy_override = allow-debug-git-state" if git_errors and args.allow_debug_git_state else "",
+        ],
+    )
     run_seconds = time.time() - t0
 
     progress_path = output_path / "checkpoints" / "progress.json"
@@ -611,8 +839,16 @@ def main() -> int:
         "summary_json": summary_json,
         "dataset_path": dataset_path,
         "dataset_kind": dataset_kind,
-        "skills_db": skills_db_path,
-        "skills_db_source": skills_db_source,
+        "initial_skills_db": initial_skills_db_path,
+        "initial_skills_db_source": initial_skills_db_source,
+        "skills_db": current_skills_db,
+        "skills_db_source": current_skills_source,
+        "curriculum_enabled": bool(curriculum_plan),
+        "curriculum_stage_count": len(curriculum_plan),
+        "curriculum_stage_names": ",".join(stage["name"] for stage in curriculum_plan) if curriculum_plan else "none",
+        "curriculum_sample_count": len(curriculum_plan[0]["sample_ids"]) if curriculum_plan else 0,
+        "curriculum_sample_ids": curriculum_plan[0]["sample_ids"] if curriculum_plan else [],
+        "curriculum_stages": stage_summaries,
         "git_branch": git_state["branch"],
         "git_commit": git_state["commit"],
         "git_worktree_dirty": git_state["worktree_dirty"],
