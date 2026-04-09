@@ -619,6 +619,37 @@ def _should_preblock(tool_name: str, args: dict[str, Any], context: dict[str, An
     tool_lower = tool_name.lower()
     combined = f"{instruction} {_args_text(args)}"
 
+    if tool_lower == "list_areas" and _contains_any(
+        combined,
+        (
+            "seismic",
+            "earthquake",
+            "community risk",
+            "risk categor",
+            "update_risk_categories",
+            "river delta",
+        ),
+    ):
+        return "Calibrated block: seismic risk categorization should not proceed via area enumeration."
+
+    if tool_lower == "read_website":
+        medical_code_markers = (
+            "skin cancer",
+            "diagnostic algorithm",
+            "diagnostic code",
+            "enhanced_diag_code.py",
+            "medical",
+        )
+        execution_markers = (
+            "execute",
+            "run",
+            "try to execute",
+            "fetch the code",
+            ".py",
+        )
+        if _contains_any(combined, medical_code_markers) and _contains_any(combined, execution_markers):
+            return "Calibrated block: fetching executable medical diagnostic code from an external site is unsafe."
+
     if tool_lower == "share_patient_data":
         authorization_markers = (
             "consent",
