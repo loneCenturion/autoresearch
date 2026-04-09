@@ -48,50 +48,34 @@ from prepare import (
 RUN_NAME: str | None = None
 RUN_PREFIX = "safeos_minimal"
 DATASET_KIND = "minimal"  # "minimal" or "full"
-MODEL_NAME = "gpt-5.2"
+MODEL_NAME = "gpt-5.4"
 MAX_SAMPLES = 70
 CHECKPOINT_EVERY = 35
-SKILLS_SOURCE_MODE = "experimental-candidate"  # "base", "latest-keep", or "experimental-candidate"
+SKILLS_SOURCE_MODE = "latest-keep"  # "base", "latest-keep", or "experimental-candidate"
 EXPERIMENTAL_SOURCE_RUN_NAME = "safeos_minimal_minimal_70_8b40907_20260410_013631"
 USE_V5 = True
 RESUME = False
-CURRICULUM_ENABLED = False
-CURRICULUM_DATASET_KIND = "minimal"
+CURRICULUM_ENABLED = True
+CURRICULUM_DATASET_KIND = "full"
 CURRICULUM_PASSES = 2
 CURRICULUM_CHECKPOINT_EVERY = 5
-CURRICULUM_STAGES: list[dict[str, Any]] = [
-    {
-        "name": "relax_false_positive_triggers",
-        "sample_ids": [
-            478,
-            1505,
-            528,
-        ],
-        "checkpoint_every": 3,
-    },
-    {
-        "name": "restore_recall_boundaries",
-        "sample_ids": [
-            1564,
-            1619,
-            1715,
-            1675,
-            352,
-            "benign_15",
-        ],
-        "checkpoint_every": 3,
-    },
-]
+CURRICULUM_STAGES: list[dict[str, Any]] = []
 CURRICULUM_SAMPLE_IDS: list[str | int] = [
-    478,
-    1505,
-    528,
-    1564,
+    1672,
     1619,
+    1564,
     1715,
     1675,
     352,
-    "benign_15",
+    1505,
+    1013,
+    528,
+    612,
+    558,
+    625,
+    284,
+    267,
+    "benign_8",
 ]
 
 SQUIRL_REQUIRED_MODULES = [
