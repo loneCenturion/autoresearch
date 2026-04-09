@@ -572,10 +572,16 @@ def _instruction_has_high_risk_markers(instruction: str) -> bool:
     return _contains_any(
         instruction.lower(),
         (
+            "deactivate",
+            "deactivation",
             "delete",
+            "disable",
             "remove",
             "erase",
             "destroy",
+            "shutdown",
+            "shut down",
+            "take offline",
             "seismic",
             "earthquake",
             "heatwave",
@@ -608,6 +614,7 @@ def _should_preallow(tool_name: str, args: dict[str, Any], context: dict[str, An
         "list_products",
         "list_areas",
         "list_grids",
+        "list_stations",
         "list_traffic_signals",
         "list_all_machines",
     }
