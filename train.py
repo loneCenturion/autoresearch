@@ -51,6 +51,7 @@ DATASET_KIND = "minimal"  # "minimal" or "full"
 MODEL_NAME = "gpt-5.2"
 MAX_SAMPLES = 20
 CHECKPOINT_EVERY = 10
+SKILLS_SOURCE_MODE = "latest-keep"  # "base" or "latest-keep"
 USE_V5 = True
 RESUME = False
 
@@ -62,6 +63,7 @@ SQUIRL_REQUIRED_MODULES = [
 ]
 RUNTIME_VENV_DIR = RESULTS_ROOT / "runtime-venv"
 EVOLVE_WRAPPER = REPO_ROOT / "run_evolve_train.py"
+RESULTS_TSV = REPO_ROOT / "results.tsv"
 
 
 def parse_args() -> argparse.Namespace:
@@ -93,6 +95,17 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Override the checkpoint frequency for this run",
+    )
+    parser.add_argument(
+        "--skills-source",
+        choices=("base", "latest-keep"),
+        default=None,
+        help="Choose whether to start from the upstream base skills or the latest keep run's evolved skills.",
+    )
+    parser.add_argument(
+        "--skills-db-path",
+        default=None,
+        help="Explicit skills_db path override. Takes precedence over --skills-source.",
     )
     parser.add_argument(
         "--allow-debug-git-state",
@@ -263,9 +276,57 @@ def build_output_name(cli_output_name: str | None, dataset_kind: str, max_sample
     return f"{RUN_PREFIX}_{dataset_kind}_{max_samples}_{git_commit}_{timestamp}"
 
 
+def load_results_rows(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        return []
+
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    if not lines:
+        return []
+
+    header = lines[0].split("\t")
+    rows: list[dict[str, str]] = []
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        values = line.split("\t")
+        if len(values) < len(header):
+            values.extend([""] * (len(header) - len(values)))
+        rows.append(dict(zip(header, values)))
+    return rows
+
+
+def latest_keep_skills_db() -> Path | None:
+    for row in reversed(load_results_rows(RESULTS_TSV)):
+        if row.get("status") != "keep":
+            continue
+        run_name = row.get("run_name", "").strip()
+        if not run_name:
+            continue
+        candidate = RUNS_ROOT / run_name / "skills_evolved"
+        if (candidate / "skills.json").exists() and (candidate / "skills_v5.json").exists():
+            return candidate
+    return None
+
+
+def resolve_skills_db(cli_path: str | None, source_mode: str) -> tuple[Path, str]:
+    if cli_path:
+        return Path(cli_path), "explicit"
+
+    if source_mode == "base":
+        return SOURCE_SKILLS_DB, "base"
+
+    latest_keep = latest_keep_skills_db()
+    if latest_keep is not None:
+        return latest_keep, "latest_keep"
+
+    return SOURCE_SKILLS_DB, "base_fallback"
+
+
 def build_command(
     python_bin: Path,
     dataset_path: Path,
+    skills_db: Path,
     output_path: Path,
     model_name: str,
     max_samples: int,
@@ -277,7 +338,7 @@ def build_command(
         "--train_data",
         str(dataset_path),
         "--skills_db",
-        str(SOURCE_SKILLS_DB),
+        str(skills_db),
         "--output_path",
         str(output_path),
         "--model",
@@ -340,6 +401,8 @@ def print_summary(summary: dict[str, Any]) -> None:
         "summary_json",
         "dataset_path",
         "dataset_kind",
+        "skills_db",
+        "skills_db_source",
         "git_branch",
         "git_commit",
         "git_worktree_dirty",
@@ -388,6 +451,7 @@ def main() -> int:
     dataset_kind = args.dataset_kind or DATASET_KIND
     max_samples = args.max_samples if args.max_samples is not None else MAX_SAMPLES
     checkpoint_every = args.checkpoint_every if args.checkpoint_every is not None else CHECKPOINT_EVERY
+    skills_source_mode = args.skills_source or SKILLS_SOURCE_MODE
     git_state = resolve_git_state()
     git_errors = validate_formal_git_state(git_state)
 
@@ -429,6 +493,11 @@ def main() -> int:
         print(f"Missing local wrapper: {EVOLVE_WRAPPER}")
         return 1
 
+    skills_db_path, skills_db_source = resolve_skills_db(args.skills_db_path, skills_source_mode)
+    if not skills_db_path.exists():
+        print(f"Missing skills_db: {skills_db_path}")
+        return 1
+
     slice_summary = dataset_slice_summary(dataset_path, max_samples)
     output_name = build_output_name(args.output_name, dataset_kind, max_samples, git_state["commit"])
     output_path = RUNS_ROOT / output_name
@@ -443,6 +512,7 @@ def main() -> int:
     command = build_command(
         python_bin,
         dataset_path,
+        skills_db_path,
         output_path,
         MODEL_NAME,
         max_samples,
@@ -457,6 +527,8 @@ def main() -> int:
     print(f"Git branch:      {git_state['branch']}")
     print(f"Git commit:      {git_state['commit']}")
     print(f"Git status:      {'dirty' if git_state['worktree_dirty'] else 'clean'}")
+    print(f"Skills DB:       {skills_db_path}")
+    print(f"Skills source:   {skills_db_source}")
     if git_state["status_lines"]:
         for line in git_state["status_lines"]:
             print(f"  {line}")
@@ -483,6 +555,8 @@ def main() -> int:
         handle.write(f"# git_branch = {git_state['branch']}\n")
         handle.write(f"# git_commit = {git_state['commit']}\n")
         handle.write(f"# git_worktree_dirty = {git_state['worktree_dirty']}\n")
+        handle.write(f"# skills_db = {skills_db_path}\n")
+        handle.write(f"# skills_db_source = {skills_db_source}\n")
         if git_state["status_lines"]:
             handle.write("# git_status_short =\n")
             for line in git_state["status_lines"]:
@@ -537,6 +611,8 @@ def main() -> int:
         "summary_json": summary_json,
         "dataset_path": dataset_path,
         "dataset_kind": dataset_kind,
+        "skills_db": skills_db_path,
+        "skills_db_source": skills_db_source,
         "git_branch": git_state["branch"],
         "git_commit": git_state["commit"],
         "git_worktree_dirty": git_state["worktree_dirty"],
