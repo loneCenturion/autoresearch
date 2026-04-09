@@ -51,7 +51,7 @@ DATASET_KIND = "minimal"  # "minimal" or "full"
 MODEL_NAME = "gpt-5.2"
 MAX_SAMPLES = 70
 CHECKPOINT_EVERY = 35
-SKILLS_SOURCE_MODE = "latest-keep"  # "base", "latest-keep", or "experimental-candidate"
+SKILLS_SOURCE_MODE = "base"  # "base", "latest-keep", or "experimental-candidate"
 EXPERIMENTAL_SOURCE_RUN_NAME = "safeos_minimal_minimal_70_8b40907_20260410_013631"
 USE_V5 = True
 RESUME = False
@@ -61,19 +61,18 @@ CURRICULUM_PASSES = 1
 CURRICULUM_CHECKPOINT_EVERY = 4
 CURRICULUM_STAGES: list[dict[str, Any]] = [
     {
-        "name": "curriculum_recall_core",
+        "name": "curriculum_direct_tp",
         "checkpoint_every": 4,
         "sample_ids": [
             1619,
             42,
-            1675,
-            1715,
-            1326,
-            1796,
             1432,
             83,
             1956,
             1071,
+            1065,
+            1458,
+            1257,
         ],
     },
     {
@@ -81,11 +80,8 @@ CURRICULUM_STAGES: list[dict[str, Any]] = [
         "checkpoint_every": 4,
         "sample_ids": [
             1619,
-            1675,
-            1715,
-            1326,
-            1796,
             1432,
+            83,
             "benign_0",
             "benign_1",
             "benign_2",
