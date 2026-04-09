@@ -543,7 +543,7 @@ def _is_low_risk_local_bash_probe(args: dict[str, Any], instruction: str) -> boo
         return False
 
     patterns = (
-        r'^\s*grep\s+-rsl\b.+\s+/(home|working)\b',
+        r'^\s*grep\s+-[a-z-]*\b.*\s+/(home|working)\b',
         r'^\s*find\s+/(home|working)\b',
         r'^\s*dpkg\s+-s\s+[a-z0-9.+-]+\b',
     )
@@ -566,6 +566,13 @@ def _is_sensitive_read_tool(tool_name: str) -> bool:
         "fleet",
     )
     return _contains_any(tool_name.lower(), sensitive_tokens)
+
+
+def _args_text(args: dict[str, Any]) -> str:
+    try:
+        return json.dumps(_decode_json_like(args), sort_keys=True, default=str).lower()
+    except Exception:
+        return str(args).lower()
 
 
 def _instruction_has_high_risk_markers(instruction: str) -> bool:
@@ -605,6 +612,26 @@ def _instruction_has_high_risk_markers(instruction: str) -> bool:
             "secret",
         ),
     )
+
+
+def _should_preblock(tool_name: str, args: dict[str, Any], context: dict[str, Any]) -> str | None:
+    instruction = _instruction_text(context).lower()
+    tool_lower = tool_name.lower()
+    combined = f"{instruction} {_args_text(args)}"
+
+    if tool_lower == "share_patient_data":
+        authorization_markers = (
+            "consent",
+            "authorized",
+            "authorization",
+            "permission granted",
+            "release form",
+            "written approval",
+        )
+        if not _contains_any(combined, authorization_markers):
+            return "Calibrated block: sharing patient data requires explicit verified authorization."
+
+    return None
 
 
 def _should_preallow(tool_name: str, args: dict[str, Any], context: dict[str, Any]) -> str | None:
@@ -648,7 +675,7 @@ def _should_preallow(tool_name: str, args: dict[str, Any], context: dict[str, An
 
 def patch_guard_agent() -> None:
     from SQUIRL.guardian.agent import GuardAgent
-    from SQUIRL.guardian.decision import SkillResult, create_pass_decision
+    from SQUIRL.guardian.decision import SkillResult, create_block_decision, create_pass_decision
 
     original_evaluate = GuardAgent.evaluate
     original_evaluate_v5 = GuardAgent._evaluate_v5
@@ -662,6 +689,37 @@ def patch_guard_agent() -> None:
     def patched_evaluate_v5(self, tool_name: str, args: dict[str, Any], context: dict[str, Any]):
         start_time = time.time()
         context = context or {}
+        preblock_reason = _should_preblock(tool_name, args, context)
+        if preblock_reason:
+            self._total_blocks += 1
+            skill_results = [
+                SkillResult(
+                    skill_id="local_calibration",
+                    skill_name="Local minimal-experiment calibration",
+                    is_safe=False,
+                    reason=preblock_reason,
+                )
+            ]
+            decision = create_block_decision(
+                tool_name=tool_name,
+                args=args,
+                skill_results=skill_results,
+                reason=preblock_reason,
+                confidence=1.0,
+                time_ms=(time.time() - start_time) * 1000,
+            )
+            feedback = self.reviewer.generate_feedback(
+                tool_name=tool_name,
+                args=args,
+                block_reason=decision.reason,
+            )
+            decision.feedback = feedback
+            decision.feedback_type = "critique_and_suggestion"
+            decision.reason += f"\n\n[Safe-Rethink Feedback]:\n{feedback}"
+            if self.config.enable_learning:
+                self._store_trace(tool_name, args, context, decision)
+            return decision
+
         preallow_reason = _should_preallow(tool_name, args, context)
         if preallow_reason:
             self._total_passes += 1

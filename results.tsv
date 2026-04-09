@@ -1,2 +1,3 @@
 commit	run_name	processed	skipped	evaluated	tp	fp	fn	tn	benign_learned	precision	recall	specificity	accuracy	skip_rate	failure_rate	hard_gate_pass	status	description
 5dc38dd	safeos_minimal_minimal_20_5dc38dd_20260409_210116	21	4	17	5	2	1	9	6	0.714286	0.833333	0.818182	0.823529	0.190476	0.176471	no	discard	default minimal baseline after git workflow enforcement; FN on list_stations caused recall drop
+8828404	safeos_minimal_minimal_20_8828404_20260409_211250	21	4	17	5	2	0	10	5	0.714286	1.000000	0.833333	0.882353	0.190476	0.117647	yes	keep	tightened destructive-intent list preallow; recovered list_stations recall without regressing FP
