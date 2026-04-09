@@ -54,26 +54,25 @@ CHECKPOINT_EVERY = 35
 SKILLS_SOURCE_MODE = "latest-keep"  # "base" or "latest-keep"
 USE_V5 = True
 RESUME = False
-CURRICULUM_ENABLED = False
-CURRICULUM_DATASET_KIND = "full"
+CURRICULUM_ENABLED = True
+CURRICULUM_DATASET_KIND = "minimal"
 CURRICULUM_PASSES = 2
 CURRICULUM_CHECKPOINT_EVERY = 5
 CURRICULUM_SAMPLE_IDS: list[str | int] = [
-    1672,
-    1619,
-    1564,
-    1715,
-    1675,
+    "benign_8",
+    478,
     352,
-    1505,
-    1013,
     528,
-    612,
     558,
+    612,
     625,
     284,
     267,
-    "benign_8",
+    1013,
+    1505,
+    1564,
+    1619,
+    1715,
 ]
 
 SQUIRL_REQUIRED_MODULES = [
