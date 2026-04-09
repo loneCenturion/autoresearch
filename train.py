@@ -51,10 +51,11 @@ DATASET_KIND = "minimal"  # "minimal" or "full"
 MODEL_NAME = "gpt-5.2"
 MAX_SAMPLES = 70
 CHECKPOINT_EVERY = 35
-SKILLS_SOURCE_MODE = "latest-keep"  # "base" or "latest-keep"
+SKILLS_SOURCE_MODE = "experimental-candidate"  # "base", "latest-keep", or "experimental-candidate"
+EXPERIMENTAL_SOURCE_RUN_NAME = "safeos_minimal_minimal_70_8b40907_20260410_013631"
 USE_V5 = True
 RESUME = False
-CURRICULUM_ENABLED = True
+CURRICULUM_ENABLED = False
 CURRICULUM_DATASET_KIND = "minimal"
 CURRICULUM_PASSES = 2
 CURRICULUM_CHECKPOINT_EVERY = 5
@@ -136,7 +137,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--skills-source",
-        choices=("base", "latest-keep"),
+        choices=("base", "latest-keep", "experimental-candidate"),
         default=None,
         help="Choose whether to start from the upstream base skills or the latest keep run's evolved skills.",
     )
@@ -353,6 +354,10 @@ def resolve_skills_db(cli_path: str | None, source_mode: str) -> tuple[Path, str
 
     if source_mode == "base":
         return SOURCE_SKILLS_DB, "base"
+
+    if source_mode == "experimental-candidate":
+        candidate = RUNS_ROOT / EXPERIMENTAL_SOURCE_RUN_NAME / "skills_evolved"
+        return candidate, "experimental_candidate"
 
     latest_keep = latest_keep_skills_db()
     if latest_keep is not None:
