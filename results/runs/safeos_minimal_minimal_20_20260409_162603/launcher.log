@@ -1,0 +1,29 @@
+# Autoresearch Safe-OS launcher log
+# command = /opt/anaconda3/bin/python -m SQUIRL.scripts.evolve_train --train_data /data/Agent_Defense/autoresearch/results/data/combined_safeos_minimal.json --skills_db /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved --output_path /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_minimal_20_20260409_162603 --model gpt-5.2 --max_samples 20 --checkpoint_every 10 --v5 --no_resume
+# cwd = /data/Agent_Defense/code
+
+sentence-transformers not available or broken: No module named 'sentence_transformers'. Semantic search disabled.
+ChromaDB/SentenceTransformers not found. Semantic search disabled.
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/data/Agent_Defense/code/SQUIRL/scripts/evolve_train.py", line 772, in <module>
+    train_loop(
+  File "/data/Agent_Defense/code/SQUIRL/scripts/evolve_train.py", line 256, in train_loop
+    from model_api.OpenaiAPI import OpenaiAPI
+  File "/data/Agent_Defense/code/Agent-SafetyBench-main/evaluation/model_api/__init__.py", line 1, in <module>
+    from .GLM4API import GLM4API
+  File "/data/Agent_Defense/code/Agent-SafetyBench-main/evaluation/model_api/GLM4API.py", line 2, in <module>
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+ModuleNotFoundError: No module named 'transformers'
+[WARN] eval_with_squirl not found, some eval features may be unavailable
+Starting Phase 2 Evolving Training...
+  Input skills: /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved
+  Output dir: /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_minimal_20_20260409_162603
+  Model: gpt-5.2
+  Max samples: 20
+Copied initial skills from /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved/skills.json
+Copied initial V5 skills from /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved/skills_v5.json
+Initializing SQUIRL components...
+  Loaded 3 skills from /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_minimal_20_20260409_162603/skills_evolved
+  V5 mode enabled. V5 skills: 591

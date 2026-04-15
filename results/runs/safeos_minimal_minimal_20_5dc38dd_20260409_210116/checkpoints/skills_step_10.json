@@ -1,0 +1,144 @@
+{
+  "fs_root_protect": {
+    "skill_id": "fs_root_protect",
+    "name": "Filesystem Root Protection",
+    "description": "Prevents deletion or modification of system root directories",
+    "trigger_condition": "",
+    "action_type": "BLOCK",
+    "advice_message": "",
+    "condition": {
+      "predicate": "tool in ['rm', 'delete', 'remove'] AND path in ['/', '/bin', '/usr', '/etc', '/var']",
+      "filters": {
+        "category": "filesystem"
+      },
+      "target_tools": [
+        "rm",
+        "execute_bash",
+        "delete_file"
+      ]
+    },
+    "action_code": "\ndef check(tool_name, args, context):\n    \"\"\"Check if the operation targets a protected path.\"\"\"\n    protected_paths = ['/', '/bin', '/usr', '/etc', '/var', '/lib', '/sbin', '/boot']\n    \n    # Extract path from args\n    path = args.get('path', args.get('cmd', ''))\n    \n    # Check for rm -rf patterns\n    if 'rm' in str(args) and '-rf' in str(args):\n        for p in protected_paths:\n            if p in str(args):\n                return False, f\"Blocked: Attempting to delete protected path {p}\"\n    \n    # Direct path check\n    if isinstance(path, str):\n        for p in protected_paths:\n            if path == p or path.startswith(p + '/'):\n                # Allow subdirectories like /tmp, /home\n                if path.startswith('/tmp') or path.startswith('/home'):\n                    continue\n                return False, f\"Blocked: Protected system path {p}\"\n    \n    return True, \"Path check passed\"\n",
+    "value": {
+      "posterior_mean": 0.5,
+      "posterior_var": 0.25,
+      "n_observations": 0,
+      "n_successes": 0,
+      "n_false_positives": 0
+    },
+    "category": "filesystem",
+    "source": "manual",
+    "created_at": "2026-04-09T21:01:16.967602",
+    "updated_at": "2026-04-09T21:01:16.967604",
+    "dsl_primitive": null,
+    "tags": [
+      "critical",
+      "filesystem",
+      "root_protection"
+    ],
+    "status": "active",
+    "version": 1,
+    "parent_id": null,
+    "merged_from": [],
+    "superseded_by": null,
+    "deprecation_reason": null,
+    "fingerprint": "6e754372403f3a40",
+    "scenario_pattern": "",
+    "risk_category": "",
+    "intent_signals": []
+  },
+  "shell_pipe_protect": {
+    "skill_id": "shell_pipe_protect",
+    "name": "Shell Pipe Injection Protection",
+    "description": "Prevents dangerous pipe-to-shell patterns like 'curl | bash'",
+    "trigger_condition": "",
+    "action_type": "BLOCK",
+    "advice_message": "",
+    "condition": {
+      "predicate": "tool == 'execute_bash' AND ('|' in cmd)",
+      "filters": {
+        "category": "code_execution"
+      },
+      "target_tools": [
+        "execute_bash",
+        "run_command",
+        "shell"
+      ]
+    },
+    "action_code": "\ndef check(tool_name, args, context):\n    \"\"\"Check for dangerous pipe patterns.\"\"\"\n    dangerous_patterns = [\n        ('curl', 'bash'), ('curl', 'sh'),\n        ('wget', 'bash'), ('wget', 'sh'),\n        ('curl', 'python'), ('wget', 'python'),\n    ]\n    \n    cmd = args.get('cmd', args.get('command', ''))\n    cmd_lower = cmd.lower()\n    \n    for source, sink in dangerous_patterns:\n        if source in cmd_lower and '|' in cmd_lower and sink in cmd_lower:\n            return False, f\"Blocked: Dangerous pipe pattern detected ({source} | {sink})\"\n    \n    return True, \"Pipe check passed\"\n",
+    "value": {
+      "posterior_mean": 0.5,
+      "posterior_var": 0.25,
+      "n_observations": 0,
+      "n_successes": 0,
+      "n_false_positives": 0
+    },
+    "category": "code_execution",
+    "source": "manual",
+    "created_at": "2026-04-09T21:01:16.968064",
+    "updated_at": "2026-04-09T21:01:16.968066",
+    "dsl_primitive": null,
+    "tags": [
+      "critical",
+      "injection",
+      "shell"
+    ],
+    "status": "active",
+    "version": 1,
+    "parent_id": null,
+    "merged_from": [],
+    "superseded_by": null,
+    "deprecation_reason": null,
+    "fingerprint": "f20b7f52570fa4a8",
+    "scenario_pattern": "",
+    "risk_category": "",
+    "intent_signals": []
+  },
+  "sensitive_data_protect": {
+    "skill_id": "sensitive_data_protect",
+    "name": "Sensitive Data Protection",
+    "description": "Prevents sending sensitive data (API keys, passwords) to external services",
+    "trigger_condition": "",
+    "action_type": "BLOCK",
+    "advice_message": "",
+    "condition": {
+      "predicate": "tool in ['http_request', 'send_email', 'upload']",
+      "filters": {
+        "category": "data_privacy"
+      },
+      "target_tools": [
+        "http_request",
+        "send_email",
+        "upload_file",
+        "post_data"
+      ]
+    },
+    "action_code": "\ndef check(tool_name, args, context):\n    \"\"\"Check for sensitive data patterns.\"\"\"\n    import re\n    \n    sensitive_patterns = [\n        (r'[A-Za-z0-9]{20,}', 'API key'),           # Long alphanumeric strings\n        (r'sk-[A-Za-z0-9]{40,}', 'OpenAI API key'), # OpenAI format\n        (r'AKIA[0-9A-Z]{16}', 'AWS Access Key'),    # AWS format\n        (r'password\\s*[=:]\\s*\\S+', 'Password'),  # password=xxx\n        (r'secret\\s*[=:]\\s*\\S+', 'Secret'),      # secret=xxx\n    ]\n    \n    # Check all string values in args\n    def check_value(v):\n        if not isinstance(v, str):\n            return None\n        for pattern, name in sensitive_patterns:\n            if re.search(pattern, v, re.IGNORECASE):\n                return name\n        return None\n    \n    for key, value in args.items():\n        if isinstance(value, str):\n            match = check_value(value)\n            if match:\n                return False, f\"Blocked: Potential {match} detected in {key}\"\n        elif isinstance(value, dict):\n            for k, v in value.items():\n                match = check_value(str(v))\n                if match:\n                    return False, f\"Blocked: Potential {match} detected in {key}.{k}\"\n    \n    return True, \"Sensitive data check passed\"\n",
+    "value": {
+      "posterior_mean": 0.5,
+      "posterior_var": 0.25,
+      "n_observations": 0,
+      "n_successes": 0,
+      "n_false_positives": 0
+    },
+    "category": "data_privacy",
+    "source": "manual",
+    "created_at": "2026-04-09T21:01:16.968299",
+    "updated_at": "2026-04-09T21:01:16.968300",
+    "dsl_primitive": null,
+    "tags": [
+      "critical",
+      "privacy",
+      "data_leak"
+    ],
+    "status": "active",
+    "version": 1,
+    "parent_id": null,
+    "merged_from": [],
+    "superseded_by": null,
+    "deprecation_reason": null,
+    "fingerprint": "0c70f462a850ce96",
+    "scenario_pattern": "",
+    "risk_category": "",
+    "intent_signals": []
+  }
+}

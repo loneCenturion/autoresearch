@@ -1,0 +1,14 @@
+
+============================================================
+Training started at 2026-04-09T16:26:03.438258
+============================================================
+[16:26:03] Starting Phase 2 Evolving Training...
+[16:26:03]   Input skills: /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved
+[16:26:03]   Output dir: /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_minimal_20_20260409_162603
+[16:26:03]   Model: gpt-5.2
+[16:26:03]   Max samples: 20
+[16:26:03] Copied initial skills from /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved/skills.json
+[16:26:03] Copied initial V5 skills from /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved/skills_v5.json
+[16:26:03] Initializing SQUIRL components...
+[16:26:03]   Loaded 3 skills from /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_minimal_20_20260409_162603/skills_evolved
+[16:26:03]   V5 mode enabled. V5 skills: 591

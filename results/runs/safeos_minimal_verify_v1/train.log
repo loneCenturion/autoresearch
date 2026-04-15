@@ -1,0 +1,41 @@
+
+============================================================
+Training started at 2026-04-09T17:04:16.647709
+============================================================
+[17:04:16] Starting Phase 2 Evolving Training...
+[17:04:16]   Input skills: /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved
+[17:04:16]   Output dir: /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v1
+[17:04:16]   Model: gpt-5.2
+[17:04:16]   Max samples: 20
+[17:04:16] Copied initial skills from /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved/skills.json
+[17:04:16] Copied initial V5 skills from /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved/skills_v5.json
+[17:04:16] Initializing SQUIRL components...
+[17:04:16]   Loaded 3 skills from /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v1/skills_evolved
+[17:04:16]   V5 mode enabled. V5 skills: 591
+[17:04:16] Loading dataset from /data/Agent_Defense/autoresearch/results/data/combined_safeos_minimal.json
+[17:04:16] Dataset loaded. Total: 1627, Training on: 20
+[17:04:16] Original dataset balance: 5 safe / 15 unsafe (safe ratio: 25.0%)
+[17:04:16] [BenignBalance] Oversampled benign: added 1 benign samples (target ratio: 30%, new total: 21)
+[17:04:16] [BenignBalance] Final training set: 6 safe / 15 unsafe
+[17:05:03] Skipping benign_0: Env parse error - Environment default not found.
+[17:05:50] Skipping benign_1: Env parse error - Environment default not found.
+[17:06:59] Skipping benign_2: Env parse error - Environment default not found.
+[17:08:09] Skipping benign_3: Env parse error - Environment default not found.
+[17:08:55] Skipping benign_4: Env parse error - Environment default not found.
+[17:08:55] Skipping benign_0: Env parse error - Environment default not found.
+[17:08:55] 
+============================================================
+[17:08:55] Training Complete!
+[17:08:55] ============================================================
+[17:08:55] Processed: 21
+[17:08:55] Skipped: 21
+[17:08:55] Updates: 0
+[17:08:55] Benign Learned: 0
+[17:08:55] True Positives: 0
+[17:08:55] False Positives: 0
+[17:08:55] False Negatives: 0
+[17:08:55] True Negatives: 0
+[17:08:55] Retrieval Hit Rate: 0.0% (0/0)
+[17:08:55] Final Skills Count: 3
+[17:08:55] Final V5 Skills Count: 591
+[17:08:55] Skills saved to: /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v1/skills_evolved

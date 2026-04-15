@@ -1,0 +1,219 @@
+# Autoresearch Safe-OS launcher log
+# command = /data/Agent_Defense/autoresearch/results/runtime-venv/bin/python /data/Agent_Defense/autoresearch/run_evolve_train.py --train_data /data/Agent_Defense/autoresearch/results/data/combined_safeos_minimal.json --skills_db /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved --output_path /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v1 --model gpt-5.2 --max_samples 20 --checkpoint_every 10 --v5 --no_resume
+# cwd = /data/Agent_Defense/code
+
+sentence-transformers not available or broken: No module named 'sentence_transformers'. Semantic search disabled.
+ChromaDB/SentenceTransformers not found. Semantic search disabled.
+[WARN] eval_with_squirl not found, some eval features may be unavailable
+Starting Phase 2 Evolving Training...
+  Input skills: /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved
+  Output dir: /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v1
+  Model: gpt-5.2
+  Max samples: 20
+Copied initial skills from /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved/skills.json
+Copied initial V5 skills from /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved/skills_v5.json
+Initializing SQUIRL components...
+  Loaded 3 skills from /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v1/skills_evolved
+  V5 mode enabled. V5 skills: 591
+Loading dataset from /data/Agent_Defense/autoresearch/results/data/combined_safeos_minimal.json
+Dataset loaded. Total: 1627, Training on: 20
+Original dataset balance: 5 safe / 15 unsafe (safe ratio: 25.0%)
+[BenignBalance] Oversampled benign: added 1 benign samples (target ratio: 30%, new total: 21)
+[BenignBalance] Final training set: 6 safe / 15 unsafe
+  0%|          | 0/20 [00:00<?, ?it/s] 10%|█         | 2/20 [00:23<03:28, 11.60s/it] 15%|█▌        | 3/20 [00:46<04:40, 16.51s/it]Traceback (most recent call last):
+  File "/data/Agent_Defense/code/Agent-SafetyBench-main/environments/EnvManager.py", line 13, in init_env
+    env_module = importlib.import_module(env_name)
+  File "/home/aias-admin/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named 'default'
+ 30%|███       | 6/20 [01:09<02:32, 10.89s/it] 35%|███▌      | 7/20 [01:33<03:00, 13.88s/it]Traceback (most recent call last):
+  File "/data/Agent_Defense/code/Agent-SafetyBench-main/environments/EnvManager.py", line 13, in init_env
+    env_module = importlib.import_module(env_name)
+  File "/home/aias-admin/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named 'default'
+ 45%|████▌     | 9/20 [01:56<02:21, 12.85s/it] 50%|█████     | 10/20 [02:19<02:31, 15.17s/it] 55%|█████▌    | 11/20 [02:42<02:33, 17.09s/it]Traceback (most recent call last):
+  File "/data/Agent_Defense/code/Agent-SafetyBench-main/environments/EnvManager.py", line 13, in init_env
+    env_module = importlib.import_module(env_name)
+  File "/home/aias-admin/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named 'default'
+ 65%|██████▌   | 13/20 [03:05<01:43, 14.86s/it] 70%|███████   | 14/20 [03:29<01:40, 16.77s/it] 75%|███████▌  | 15/20 [03:52<01:32, 18.40s/it]Traceback (most recent call last):
+  File "/data/Agent_Defense/code/Agent-SafetyBench-main/environments/EnvManager.py", line 13, in init_env
+    env_module = importlib.import_module(env_name)
+  File "/home/aias-admin/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named 'default'
+ 85%|████████▌ | 17/20 [04:15<00:46, 15.61s/it] 90%|█████████ | 18/20 [04:38<00:34, 17.32s/it]Traceback (most recent call last):
+  File "/data/Agent_Defense/code/Agent-SafetyBench-main/environments/EnvManager.py", line 13, in init_env
+    env_module = importlib.import_module(env_name)
+  File "/home/aias-admin/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named 'default'
+Traceback (most recent call last):
+  File "/data/Agent_Defense/code/Agent-SafetyBench-main/environments/EnvManager.py", line 13, in init_env
+    env_module = importlib.import_module(env_name)
+  File "/home/aias-admin/.local/share/uv/python/cpython-3.10-linux-x86_64-gnu/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1004, in _find_and_load_unlocked
+ModuleNotFoundError: No module named 'default'
+21it [04:38, 13.28s/it]                        
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+No module named 'default'
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+No module named 'default'
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+No module named 'default'
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+No module named 'default'
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+Connection error.
+No module named 'default'
+No module named 'default'
+
+============================================================
+Training Complete!
+============================================================
+Processed: 21
+Skipped: 21
+Updates: 0
+Benign Learned: 0
+True Positives: 0
+False Positives: 0
+False Negatives: 0
+True Negatives: 0
+Retrieval Hit Rate: 0.0% (0/0)
+Final Skills Count: 3
+Final V5 Skills Count: 591
+Skills saved to: /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v1/skills_evolved

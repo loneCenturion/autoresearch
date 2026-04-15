@@ -1,0 +1,17 @@
+{
+  "last_step": 6,
+  "stats": {
+    "processed": 7,
+    "updates": 2,
+    "failures": 3,
+    "skipped": 0,
+    "true_positive": 1,
+    "false_positive": 3,
+    "false_negative": 0,
+    "true_negative": 3,
+    "benign_learned": 2
+  },
+  "timestamp": "2026-04-10T02:31:50.581536",
+  "skills_file": "/data/Agent_Defense/autoresearch/results/runs/safeos_minimal_minimal_70_114da74_20260410_022645/_curriculum/restore_recall_boundaries/checkpoints/skills_step_6.json",
+  "skills_v5_file": "/data/Agent_Defense/autoresearch/results/runs/safeos_minimal_minimal_70_114da74_20260410_022645/_curriculum/restore_recall_boundaries/checkpoints/skills_v5_step_6.json"
+}

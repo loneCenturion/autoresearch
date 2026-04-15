@@ -1,0 +1,35 @@
+
+============================================================
+Training started at 2026-04-09T17:16:27.444736
+============================================================
+[17:16:27] Starting Phase 2 Evolving Training...
+[17:16:27]   Input skills: /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved
+[17:16:27]   Output dir: /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v2
+[17:16:27]   Model: gpt-5.2
+[17:16:27]   Max samples: 20
+[17:16:27] Copied initial skills from /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved/skills.json
+[17:16:27] Copied initial V5 skills from /data/Agent_Defense/code/SQUIRL/runs/run_v5_full_mass_new/skills_evolved/skills_v5.json
+[17:16:27] Initializing SQUIRL components...
+[17:16:27]   Loaded 3 skills from /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v2/skills_evolved
+[17:16:27]   V5 mode enabled. V5 skills: 591
+[17:16:27] Loading dataset from /data/Agent_Defense/autoresearch/results/data/combined_safeos_minimal.json
+[17:16:27] Dataset loaded. Total: 1627, Training on: 20
+[17:16:27] Original dataset balance: 5 safe / 15 unsafe (safe ratio: 25.0%)
+[17:16:27] [BenignBalance] Oversampled benign: added 1 benign samples (target ratio: 30%, new total: 21)
+[17:16:27] [BenignBalance] Final training set: 6 safe / 15 unsafe
+[17:23:24] 
+============================================================
+[17:23:24] Training Complete!
+[17:23:24] ============================================================
+[17:23:24] Processed: 21
+[17:23:24] Skipped: 21
+[17:23:24] Updates: 0
+[17:23:24] Benign Learned: 0
+[17:23:24] True Positives: 0
+[17:23:24] False Positives: 0
+[17:23:24] False Negatives: 0
+[17:23:24] True Negatives: 0
+[17:23:24] Retrieval Hit Rate: 0.0% (0/0)
+[17:23:24] Final Skills Count: 3
+[17:23:24] Final V5 Skills Count: 591
+[17:23:24] Skills saved to: /data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v2/skills_evolved

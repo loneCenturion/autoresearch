@@ -1,0 +1,17 @@
+{
+  "last_step": 10,
+  "stats": {
+    "processed": 10,
+    "updates": 3,
+    "failures": 4,
+    "skipped": 3,
+    "true_positive": 3,
+    "false_positive": 4,
+    "false_negative": 0,
+    "true_negative": 0,
+    "benign_learned": 0
+  },
+  "timestamp": "2026-04-09T17:39:14.122801",
+  "skills_file": "/data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v3/checkpoints/skills_step_10.json",
+  "skills_v5_file": "/data/Agent_Defense/autoresearch/results/runs/safeos_minimal_verify_v3/checkpoints/skills_v5_step_10.json"
+}

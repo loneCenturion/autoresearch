@@ -1,0 +1,17 @@
+{
+  "last_step": 70,
+  "stats": {
+    "processed": 75,
+    "updates": 8,
+    "failures": 9,
+    "skipped": 19,
+    "true_positive": 16,
+    "false_positive": 8,
+    "false_negative": 1,
+    "true_negative": 31,
+    "benign_learned": 2
+  },
+  "timestamp": "2026-04-10T02:55:01.710085",
+  "skills_file": "/data/Agent_Defense/autoresearch/results/runs/safeos_minimal_minimal_70_114da74_20260410_022645/checkpoints/skills_step_70.json",
+  "skills_v5_file": "/data/Agent_Defense/autoresearch/results/runs/safeos_minimal_minimal_70_114da74_20260410_022645/checkpoints/skills_v5_step_70.json"
+}
