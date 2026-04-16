@@ -1,0 +1,17 @@
+{
+  "last_step": 12,
+  "stats": {
+    "processed": 12,
+    "updates": 8,
+    "failures": 0,
+    "skipped": 0,
+    "true_positive": 3,
+    "false_positive": 0,
+    "false_negative": 0,
+    "true_negative": 9,
+    "benign_learned": 6
+  },
+  "timestamp": "2026-04-14T22:45:35.295059",
+  "skills_file": "C:\\Users\\22634\\Desktop\\Agent_Defense-main\\autoresearch\\autoresearch-fcd642eae404bf03894498def339ef10fee6c930\\results\\runs\\safeos_minimal_v6_5_live1_20260414\\_curriculum\\curriculum_benign_readonly\\checkpoints\\skills_step_12.json",
+  "skills_v5_file": "C:\\Users\\22634\\Desktop\\Agent_Defense-main\\autoresearch\\autoresearch-fcd642eae404bf03894498def339ef10fee6c930\\results\\runs\\safeos_minimal_v6_5_live1_20260414\\_curriculum\\curriculum_benign_readonly\\checkpoints\\skills_v5_step_12.json"
+}
