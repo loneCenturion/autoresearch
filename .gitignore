@@ -20,5 +20,14 @@ dev/
 
 # Results file
 results.tsv
-.omx/
-.codex/
+.omx/*
+!.omx/README.md
+!.omx/specs/
+.omx/specs/*
+!.omx/specs/deep-interview-agents-md-conflict.md
+!.omx/plans/
+.omx/plans/*
+!.omx/plans/prd-agents-md-bridge.md
+!.omx/plans/test-spec-agents-md-bridge.md
+.codex/*
+!.codex/README.md
