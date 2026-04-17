@@ -35,11 +35,15 @@
 
 仓库内的真实说明文件仍然是 `program.md`。
 
-为了兼容不同 agent 工具，可以做本地别名：
+为了兼容不同 agent 工具，当前采用 **bridge 模式**：
 
-- `AGENTS.md`：符合 Codex / agent tooling 的常见约定，推荐。
+- 根目录 `AGENTS.md`：保留为 OMX / Codex 的实际入口文件（本仓库默认本地忽略，不作为受版本控制文件提交）。
+- `program.md`：继续作为本仓库项目特定规则的 source of truth。
+- `AGENTS.md` 内应显式桥接到 `program.md`，而不是继续假设它只是一个软链接。
 
-建议把 `program.md` 作为 source of truth，`AGENTS.md` 只做软链接，不单独维护内容。
+这意味着：短期内不要求把 `program.md` 重新变回根入口，但也不应让项目规则脱离 `program.md` 单独漂移。
+
+如果重新初始化 OMX，或在新机器上克隆本仓库，应确保本地根 `AGENTS.md` 继续保留这层 bridge：**OMX 负责根入口 / 编排规则，`program.md` 负责本仓库的项目特定实验规则。**
 
 ## 运行方式
 

@@ -20,3 +20,5 @@ dev/
 
 # Results file
 results.tsv
+.omx/
+.codex/

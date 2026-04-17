@@ -2,6 +2,8 @@
 
 这是 Safe-OS 最小实验的 autoresearch 控制文件。
 
+> 过渡说明：根目录 `AGENTS.md` 当前保留为 OMX/Codex 入口；本文件仍然是本仓库项目特定规则的 source of truth，并通过根 `AGENTS.md` 显式桥接引用。若后续重新初始化 OMX 或迁移到新环境，应先恢复这层 bridge，再继续实验工作流。
+
 ## Setup
 
 开始一个新实验时，和用户一起完成下面这些固定步骤：
