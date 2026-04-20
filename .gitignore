@@ -31,3 +31,11 @@ results.tsv
 !.omx/plans/test-spec-agents-md-bridge.md
 .codex/*
 !.codex/README.md
+.omx/
+!.codex/agents/
+!.codex/agents/**
+!.codex/skills/
+!.codex/skills/**
+.codex/skills/.system/**
+!.codex/prompts/
+!.codex/prompts/**
